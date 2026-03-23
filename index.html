@@ -622,11 +622,12 @@ function uploadToSupabase(file, category) {
   var safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   var path      = category + '/' + timestamp + '_' + safeName;
   var uploadUrl = SUPABASE_URL + '/storage/v1/object/' + SUPABASE_BUCKET + '/' + path;
-
-  return fetch(uploadUrl, {
+  
+return fetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'apikey': SUPABASE_KEY,   /* <--- THIS IS THE MISSING MAGIC LINE */
       'Content-Type': file.type || 'application/octet-stream',
       'x-upsert': 'true'
     },
