@@ -181,15 +181,7 @@ function collectBranches() {
 <div class="wrap">
 <form id="form" onsubmit="handleSubmit(event)">
 
-<div class="card">
-  <div class="card-body">
-    <div class="f">
-      <label>Company Name <span class="r">*</span></label>
-      <input type="text" name="company_name" placeholder="e.g. Cinnamon Group" required/>
-    </div>
-  </div>
-</div>
-
+<!-- ══ 1. TEAM & CONTACTS ══════════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon navy">👥</div>
@@ -269,6 +261,7 @@ function collectBranches() {
   </div>
 </div>
 
+<!-- ══ 2. BRANCH CONFIGURATION ════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon navy">🏪</div>
@@ -310,6 +303,7 @@ function collectBranches() {
   </div>
 </div>
 
+<!-- ══ 3. DATA UPLOAD ══════════════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon green">📁</div>
@@ -320,6 +314,7 @@ function collectBranches() {
   </div>
   <div class="card-body">
 
+    <!-- Upload 1 — Invoices -->
     <div class="upload-block" id="ub1">
       <div class="ub-row">
         <div class="ub-num">1</div>
@@ -337,6 +332,7 @@ function collectBranches() {
       </div>
     </div>
 
+    <!-- Upload 2 — Suppliers -->
     <div class="upload-block" id="ub2">
       <div class="ub-row">
         <div class="ub-num">2</div>
@@ -354,6 +350,7 @@ function collectBranches() {
       </div>
     </div>
 
+    <!-- Upload 3 — Recipes -->
     <div class="upload-block" id="ub3">
       <div class="ub-row">
         <div class="ub-num">3</div>
@@ -375,6 +372,7 @@ function collectBranches() {
   </div>
 </div>
 
+<!-- ══ 4. PRE-TRAINING ASSESSMENT ═════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon amber">🎯</div>
@@ -497,6 +495,7 @@ function collectBranches() {
   </div>
 </div>
 
+<!-- ══ 5. BLOCKERS ════════════════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon red">⚠️</div>
@@ -516,6 +515,7 @@ function collectBranches() {
   </div>
 </div>
 
+<!-- SUBMIT -->
 <div class="submit-card">
   <button type="submit" class="submit-btn" id="submitBtn">
     <span id="submitBtnText">Submit — Start my onboarding →</span>
@@ -528,6 +528,7 @@ function collectBranches() {
 <div class="footer">supy.io</div>
 </div>
 
+<!-- LOADING OVERLAY -->
 <div id="loadingOverlay">
   <div class="lo-spinner"></div>
   <div class="lo-title" id="loTitle">Saving your data…</div>
@@ -535,6 +536,7 @@ function collectBranches() {
   <div class="lo-progress"><div class="lo-progress-fill" id="loProgressFill"></div></div>
 </div>
 
+<!-- SUCCESS -->
 <div class="success" id="succ">
   <div class="success-icon">✅</div>
   <div class="success-h">You're in the system.</div>
@@ -544,12 +546,16 @@ function collectBranches() {
 
 <script>
 /* ════════════════════════════════════════════════════════════════
-   CONFIG — LIVE & WORKING (Supabase + Render)
+   CONFIG — update these two values
    ════════════════════════════════════════════════════════════════ */
-var RENDER_URL       = 'https://supy-onboarding.onrender.com/webhook';
-var SUPABASE_URL     = 'https://zwswlfugdzlxroqzwpfv.supabase.co';
-var SUPABASE_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3c3dsZnVxZHpseHJvcXp3cGZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNjgwMzEsImV4cCI6MjA4OTg0NDAzMX0.iyeLl4ddAwvgX8fojd3SIWiEL1-ni0wqFrID9PGMmh4';
-var SUPABASE_BUCKET  = 'onboarding-files';
+var RENDER_URL     = 'https://supy-onboarding.onrender.com/webhook';
+
+// Supabase — free file storage (1GB free forever, permanent URLs)
+// Sign up free at supabase.com → create project → Storage → create bucket "onboarding-files" (set to public)
+// Then paste your Project URL and anon key below
+var SUPABASE_URL   = 'https://zwswlfugdzlxroqzwpfv.supabase.co';
+var SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3c3dsZnVxZHpseHJvcXp3cGZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNjgwMzEsImV4cCI6MjA4OTg0NDAzMX0.iyeLl4ddAwvgX8fojd3SIWiEL1-ni0wqFrID9PGMmh4';
+var SUPABASE_BUCKET = 'onboarding-files';
 
 /* ════════════════════════════════════════════════════════════════
    FILE UPLOAD — uploads to Supabase Storage directly from browser
@@ -622,18 +628,20 @@ function uploadToSupabase(file, category) {
   var safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   var path      = category + '/' + timestamp + '_' + safeName;
   var uploadUrl = SUPABASE_URL + '/storage/v1/object/' + SUPABASE_BUCKET + '/' + path;
-  
-return fetch(uploadUrl, {
+
+  return fetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'apikey': SUPABASE_KEY,   /* <--- THIS IS THE MISSING MAGIC LINE */
+      'apikey': SUPABASE_KEY,
       'Content-Type': file.type || 'application/octet-stream',
       'x-upsert': 'true'
     },
     body: file
   }).then(function(res) {
-    if (!res.ok) throw new Error('Supabase upload failed: ' + res.status);
+    if (!res.ok) {
+      return res.text().then(function(t){ throw new Error('Supabase ' + res.status + ': ' + t); });
+    }
     var publicUrl = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_BUCKET + '/' + path;
     return { name: file.name, url: publicUrl };
   });
