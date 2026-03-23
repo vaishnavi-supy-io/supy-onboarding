@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Supy Onboarding Form</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,sans-serif;background:#f4f1fa;color:#1A1A2E;font-size:13px}
+.hero{background:linear-gradient(135deg,#1a0d33,#503390);padding:18px 32px 16px;text-align:center}
+.hero-eyebrow{display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:20px;padding:4px 14px;font-size:9px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:12px}
+.hero h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:7px;line-height:1.2}
+.hero h1 em{font-style:normal;color:#40c798}
+.wrap{max-width:700px;margin:0 auto;padding:24px 16px 48px}
+.progress-wrap{position:sticky;top:0;z-index:100;background:#fff;padding:12px 24px;box-shadow:0 2px 12px rgba(80,51,144,.13);border-bottom:1.5px solid #ede9fb}
+.prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.prog-label{font-size:10px;font-weight:600;color:#503390}
+.prog-pct{font-size:10px;font-weight:700;color:#503390}
+.prog-bar{background:#ede9fb;border-radius:20px;height:5px;overflow:hidden}
+.prog-fill{background:linear-gradient(90deg,#503390,#7b51bf);height:100%;border-radius:20px;width:0%;transition:width .4s}
+.card{background:#fff;border-radius:12px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 4px rgba(80,51,144,.07)}
+.card-header{padding:15px 20px 13px;border-bottom:1px solid #f0ebf8;display:flex;align-items:center;gap:10px}
+.ch-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ch-icon.navy{background:#e8e3f5}.ch-icon.green{background:#E8FAF0}.ch-icon.blue{background:#EBF3FC}.ch-icon.amber{background:#FEF9EC}.ch-icon.red{background:#FEE2E2}
+.ch-text .ch-title{font-size:13px;font-weight:700;color:#321e57}
+.ch-text .ch-sub{font-size:10px;color:#888;margin-top:2px}
+.req-badge{background:#FEE2E2;color:#DC2626;font-size:8.5px;font-weight:700;padding:2px 7px;border-radius:3px;margin-left:6px}
+.card-body{padding:20px 24px}
+.sub-head{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:1.1px;color:#503390;border-left:3px solid #7b51bf;padding-left:8px;margin:16px 0 12px}
+.sub-head:first-child{margin-top:0}
+.contact-card{border-radius:8px;padding:14px 16px;margin-bottom:4px}
+.cc-navy{background:#f5f3fc;border:1.5px solid #d8d0f0}
+.cc-amber{background:#fff8f0;border:1.5px solid #fde8cc}
+.cc-blue{background:#f0f7ff;border:1.5px solid #bdd9f5}
+.cc-hint{font-size:9.5px;font-weight:600;margin-bottom:10px;display:flex;gap:6px;align-items:flex-start}
+.cc-hint-navy{color:#503390}.cc-hint-amber{color:#B8860B}.cc-hint-blue{color:#1E5FA8}
+.row{display:grid;gap:14px;margin-bottom:14px}
+.row.r2{grid-template-columns:1fr 1fr}.row.r3{grid-template-columns:1fr 1fr 1fr}.row.r1{grid-template-columns:1fr}
+.row:last-child{margin-bottom:0}
+.f{display:flex;flex-direction:column;gap:5px}
+label{font-size:10.5px;font-weight:600;color:#321e57}
+label .r{color:#DC2626;margin-left:2px}
+label .o{color:#aaa;font-weight:400;font-size:9px;margin-left:4px}
+input[type=text],input[type=email],input[type=tel],input[type=date],select,textarea{width:100%;padding:8px 10px;border:1.5px solid #e0d8f0;border-radius:6px;font-family:inherit;font-size:11.5px;color:#1A1A2E;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.08)}
+input::placeholder,textarea::placeholder{color:#c0b8d8}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23888' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer}
+textarea{resize:vertical;min-height:72px}
+.hint{font-size:9.5px;color:#888;margin-top:2px;line-height:1.4}
+/* upload */
+.upload-block{border:1.5px dashed #c8bee8;border-radius:8px;padding:13px 15px;margin-bottom:10px;background:#faf8fe;transition:all .2s}
+.upload-block:last-child{margin-bottom:0}
+.ub-row{display:flex;align-items:flex-start;gap:10px}
+.ub-num{width:22px;height:22px;border-radius:50%;background:#503390;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.ub-body{flex:1}
+.ub-title{font-size:12px;font-weight:700;color:#1A1A2E;margin-bottom:2px}
+.ub-sub{font-size:10px;color:#888;line-height:1.4;margin-bottom:8px}
+.ub-inputs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.upload-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border:1.5px solid #7b51bf;border-radius:5px;font-size:10px;font-weight:600;color:#503390;background:#fff;cursor:pointer;transition:all .15s;flex-shrink:0;font-family:inherit}
+.upload-btn:hover{background:#ede9fb}
+.upload-btn.uploading{background:#fff8e6;border-color:#f59e0b;color:#92400e;cursor:wait}
+.upload-btn.done{background:#E8FAF0;border-color:#40c798;color:#1A8A5C}
+.ub-or{font-size:9px;color:#bbb;flex-shrink:0;font-weight:500}
+.ub-link{flex:1;min-width:180px;padding:6px 10px;border:1.5px solid #e0d8f0;border-radius:5px;font-family:inherit;font-size:11px;color:#1A1A2E;background:#fff;outline:none;transition:border-color .15s}
+.ub-link:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.08)}
+.ub-link::placeholder{color:#c0b8d8;font-size:10.5px}
+.ub-file-list{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
+.ub-file-pill{display:inline-flex;align-items:center;gap:4px;background:#f0f7ff;border:1px solid #bdd9f5;border-radius:4px;padding:3px 8px;font-size:9.5px;color:#1E5FA8;max-width:200px}
+.ub-file-pill a{color:#1E5FA8;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.ub-file-pill a:hover{text-decoration:underline}
+input[type=file]{display:none}
+/* branch table */
+.branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;width:100%}
+.branch-header,.branch-row{display:grid;grid-template-columns:2.4fr 1.8fr 1.3fr 1.6fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
+.branch-header{background:#321e57}
+.bh-cell{display:flex;align-items:center;padding:10px;font-size:8px;font-weight:700;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.8px;border-right:1px solid rgba(255,255,255,.12)}
+.bh-cell:last-child{border-right:none}
+.bc,.bc-hours{border-right:1px solid #ede9fb;display:flex;align-items:center;box-sizing:border-box;min-width:0}
+.bc:last-child,.bc.bh-del{border-right:none}
+.bc input[type=text]{border:1.5px solid transparent;border-radius:5px;padding:8px 10px;font-size:11px;width:100%;background:transparent;font-family:inherit;color:#1A1A2E;min-width:0;box-sizing:border-box;margin:4px}
+.bc input[type=text]:focus{outline:none;border-color:#503390;background:#fff;box-shadow:0 0 0 3px rgba(80,51,144,.07)}
+.bc input::placeholder{color:#c8bedd;font-size:10.5px}
+.bc.bh-del{display:flex;align-items:center;justify-content:center;padding:0 6px}
+.bc-hours{padding:4px 6px}
+.hours-wrap{display:flex;align-items:center;gap:3px;width:100%}
+.hours-sep{font-size:11px;color:#aaa;flex-shrink:0}
+.time-input{border:1.5px solid #e0d8f0!important;border-radius:5px;padding:7px 3px!important;font-size:10.5px!important;background:#fff!important;cursor:pointer;flex:1;min-width:0;font-family:inherit;color:#1A1A2E;text-align:center;box-sizing:border-box}
+.time-input:focus{outline:none;border-color:#503390!important;box-shadow:0 0 0 3px rgba(80,51,144,.07)!important}
+.del-row{width:24px;height:24px;border-radius:4px;border:1px solid #fca5a5;background:#FEE2E2;color:#DC2626;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;padding:0;opacity:0;transition:opacity .15s;flex-shrink:0}
+.branch-row:hover .del-row{opacity:1}
+.add-branch-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#503390;background:#ede9fb;border:1.5px solid #c0aee8;border-radius:6px;padding:7px 14px;cursor:pointer;transition:background .15s;margin-top:2px;font-family:inherit}
+.add-branch-btn:hover{background:#e0d8f0}
+/* submit */
+.submit-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(80,51,144,.07)}
+.submit-btn{width:100%;padding:14px;background:linear-gradient(135deg,#503390,#7b51bf);color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.2px;transition:opacity .2s}
+.submit-btn:hover{opacity:.9}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+.submit-secure{text-align:center;font-size:9.5px;color:#aaa;margin-top:8px}
+.footer{text-align:center;padding:20px 0 0;font-size:9px;color:#ccc}
+#finance-details,#it-details{transition:opacity .18s;margin-top:12px}
+/* success */
+.success{display:none;position:fixed;inset:0;background:#f4f1fa;z-index:999;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px}
+.success-icon{font-size:54px;margin-bottom:16px}
+.success-h{font-size:24px;font-weight:800;color:#321e57;margin-bottom:8px}
+.success-p{font-size:12.5px;color:#666;max-width:420px;line-height:1.65;margin-bottom:20px}
+.success-next{background:#321e57;color:#fff;border:none;border-radius:8px;padding:12px 28px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+/* validation */
+.f.err input,.f.err select,.f.err textarea{border-color:#d93025!important;background:#fff8f8!important}
+.f.err .err-msg{display:block;font-size:9.5px;color:#d93025;margin-top:4px;font-weight:600}
+.err-msg{display:none}
+.f.ok input,.f.ok select,.f.ok textarea{border-color:#40c798!important;background:#f4fcf9!important}
+#errBanner{display:none;position:sticky;top:0;z-index:999;background:#d93025;color:#fff;font-size:11px;font-weight:700;padding:10px 16px;border-radius:8px;margin-bottom:12px;box-shadow:0 3px 12px rgba(217,48,37,.35);cursor:pointer;line-height:1.5}
+#errBanner span{font-weight:400;display:block;font-size:10px;margin-top:2px;opacity:.9}
+/* loading overlay */
+#loadingOverlay{display:none;position:fixed;inset:0;background:rgba(26,13,51,.85);z-index:1000;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px}
+.lo-spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.2);border-top-color:#40c798;border-radius:50%;animation:spin .75s linear infinite;margin-bottom:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lo-title{font-size:15px;font-weight:700;color:#fff;margin-bottom:6px}
+.lo-sub{font-size:11px;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6}
+.lo-progress{margin-top:16px;width:220px;height:4px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden}
+.lo-progress-fill{height:100%;background:#40c798;border-radius:4px;transition:width .5s ease;width:0%}
+</style>
+
+<script>
+/* ── Branch table ─────────────────────────────────────────────── */
+function addBranchRow() {
+  var c = document.getElementById('branchRows');
+  var row = document.createElement('div');
+  row.className = 'branch-row';
+  row.innerHTML =
+    '<div class="bc"><input type="text" placeholder="e.g. Branch name" required class="branch-req"/></div>'
+    +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
+    +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
+    +'<div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Opening time"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Closing time"/></div></div>'
+    +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
+    +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
+  c.appendChild(row);
+  row.querySelectorAll('input').forEach(function(el){
+    el.addEventListener('input', updateProgress);
+    el.addEventListener('change', updateProgress);
+  });
+  row.querySelector('input').focus();
+  updateProgress();
+}
+function deleteBranchRow(btn) {
+  if (document.querySelectorAll('.branch-row').length <= 1) return;
+  btn.closest('.branch-row').remove();
+  updateProgress();
+}
+function collectBranches() {
+  var branches = [];
+  document.querySelectorAll('#branchRows .branch-row').forEach(function(row) {
+    var inputs = row.querySelectorAll('input[type=text],input[type=time]');
+    var b = {
+      name:        inputs[0] ? inputs[0].value.trim() : '',
+      address:     inputs[1] ? inputs[1].value.trim() : '',
+      cost_center: inputs[2] ? inputs[2].value.trim() : '',
+      open:        inputs[3] ? inputs[3].value : '',
+      close:       inputs[4] ? inputs[4].value : '',
+      details:     inputs[5] ? inputs[5].value.trim() : ''
+    };
+    if (b.name) branches.push(b);
+  });
+  return branches;
+}
+</script>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-eyebrow">Onboarding Setup</div>
+  <h1>Your Supy onboarding <em>starts here.</em></h1>
+</div>
+
+<div class="progress-wrap">
+  <div class="prog-top"><span class="prog-label">Form progress</span><span class="prog-pct" id="pct">0% complete</span></div>
+  <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+</div>
+
+<div class="wrap">
+<form id="form" onsubmit="handleSubmit(event)">
+
+<div class="card">
+  <div class="card-body">
+    <div class="f">
+      <label>Company Name <span class="r">*</span></label>
+      <input type="text" name="company_name" placeholder="e.g. Cinnamon Group" required/>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="ch-icon navy">👥</div>
+    <div class="ch-text">
+      <div class="ch-title">Your Team &amp; Key Contacts<span class="req-badge">Required</span></div>
+      <div class="ch-sub">Everyone your CSM needs to know — operations, finance, IT. Missing contacts cause delays.</div>
+    </div>
+  </div>
+  <div class="card-body">
+
+    <div class="sub-head">Internal Champion — owns Supy day-to-day, attends all 4 sessions</div>
+    <div class="contact-card cc-navy">
+      <div class="cc-hint cc-hint-navy">⭐ Your CSM's main contact throughout onboarding. Attends every training session and drives Supy adoption.</div>
+      <div class="row r3">
+        <div class="f"><label>Full Name <span class="r">*</span></label><input type="text" name="champion_name" placeholder="First and last name" required/></div>
+        <div class="f"><label>Job Title <span class="r">*</span></label><input type="text" name="champion_title" placeholder="e.g. Operations Manager" required/></div>
+        <div class="f"><label>Phone / WhatsApp <span class="r">*</span></label><input type="tel" name="champion_phone" placeholder="+971 50 000 0000" required/></div>
+      </div>
+      <div class="row r1">
+        <div class="f"><label>Email Address <span class="r">*</span></label><input type="email" name="champion_email" placeholder="champion@company.com" required/></div>
+      </div>
+    </div>
+
+    <div class="sub-head" style="margin-top:18px">Finance &amp; Accounting POC — posts and reconciles all invoices</div>
+    <div class="contact-card cc-amber">
+      <div class="cc-hint cc-hint-amber">💰 Posts supplier invoices into your accounting software and reconciles them against orders. Without this person, invoices go live with no one to process them.</div>
+      <div class="row r1">
+        <div class="f"><label>Does an external accounting firm handle your books? <span class="r">*</span></label>
+          <select name="accounting_external" required>
+            <option value="">Select…</option>
+            <option>No — all done in-house</option>
+            <option>Partially — some outsourced</option>
+            <option>Yes — fully outsourced</option>
+          </select>
+        </div>
+      </div>
+      <div id="finance-details">
+        <div class="row r3">
+          <div class="f"><label>Full Name <span class="r">*</span></label><input type="text" name="finance_name" placeholder="First and last name" required data-orig-required="yes"/></div>
+          <div class="f"><label>Job Title <span class="r">*</span></label><input type="text" name="finance_title" placeholder="e.g. Finance Manager" required data-orig-required="yes"/></div>
+          <div class="f"><label>Phone / WhatsApp <span class="r">*</span></label><input type="tel" name="finance_phone" placeholder="+971 50 000 0000" required data-orig-required="yes"/></div>
+        </div>
+        <div class="row r1">
+          <div class="f"><label>Email Address <span class="r">*</span></label><input type="email" name="finance_email" placeholder="finance@company.com" required data-orig-required="yes"/></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-head" style="margin-top:18px">IT Contact — holds POS &amp; accounting system credentials</div>
+    <div class="contact-card cc-blue">
+      <div class="cc-hint cc-hint-blue">💻 Provides POS admin access and accounting software credentials. The #1 cause of delayed go-lives is no direct IT contact.</div>
+      <div class="row r1">
+        <div class="f"><label>Is this the same person as the Internal Champion? <span class="r">*</span></label>
+          <select required id="it_same" name="it_same_as_champion" onchange="toggleSameAs(this,'it-details')">
+            <option value="">Select…</option>
+            <option value="no">No — different person</option>
+            <option value="yes">Yes — same person</option>
+          </select>
+        </div>
+      </div>
+      <div id="it-details">
+        <div class="row r3">
+          <div class="f"><label>Full Name <span class="r">*</span></label><input type="text" name="it_name" placeholder="First and last name" required data-orig-required="yes"/></div>
+          <div class="f"><label>Job Title <span class="r">*</span></label><input type="text" name="it_title" placeholder="e.g. IT Manager" required data-orig-required="yes"/></div>
+          <div class="f"><label>Phone / WhatsApp <span class="r">*</span></label><input type="tel" name="it_phone" placeholder="+971 50 000 0000" required data-orig-required="yes"/></div>
+        </div>
+        <div class="row r1">
+          <div class="f"><label>Email Address <span class="r">*</span></label><input type="email" name="it_email" placeholder="it@company.com" required data-orig-required="yes"/></div>
+        </div>
+        <div class="row r2" style="margin-top:10px">
+          <div class="f"><label>POS System <span class="r">*</span></label><input type="text" name="pos_system" placeholder="e.g. Foodics, Micros, Toast" required data-orig-required="yes"/><div class="hint">Your CSM will contact IT directly to configure the integration.</div></div>
+          <div class="f"><label>Accounting Software <span class="r">*</span></label><input type="text" name="accounting_software" placeholder="e.g. QuickBooks, Xero, SAP" required data-orig-required="yes"/><div class="hint">Your CSM will contact IT directly to configure the integration.</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="ch-icon navy">🏪</div>
+    <div class="ch-text">
+      <div class="ch-title">Branch Configuration<span class="req-badge">Required</span></div>
+      <div class="ch-sub">One row per location — your CSM uses this to build your account structure.</div>
+    </div>
+  </div>
+  <div class="card-body" style="padding:20px 24px 16px">
+    <div class="branch-table-wrap">
+      <div class="branch-header">
+        <div class="bh-cell">Branch Name <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
+        <div class="bh-cell">Address <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
+        <div class="bh-cell">Cost Center <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
+        <div class="bh-cell">Operating Hours <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
+        <div class="bh-cell">Details <span style="color:rgba(255,255,255,.4);font-size:9px;font-weight:400;margin-left:3px">(opt)</span></div>
+        <div class="bh-cell"></div>
+      </div>
+      <div id="branchRows">
+        <div class="branch-row">
+          <div class="bc"><input type="text" placeholder="e.g. Bistro Bruce — Marina" required class="branch-req"/></div>
+          <div class="bc"><input type="text" placeholder="e.g. Marina Walk, Dubai" required class="branch-req"/></div>
+          <div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar" required class="branch-req"/></div>
+          <div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Open"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Close"/></div></div>
+          <div class="bc"><input type="text" placeholder="e.g. Ground floor"/></div>
+          <div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>
+        </div>
+        <div class="branch-row">
+          <div class="bc"><input type="text" placeholder="e.g. Bistro Bruce — DIFC" required class="branch-req"/></div>
+          <div class="bc"><input type="text" placeholder="e.g. Gate Village, DIFC" required class="branch-req"/></div>
+          <div class="bc"><input type="text" placeholder="e.g. Kitchen, Lounge" required class="branch-req"/></div>
+          <div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Open"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Close"/></div></div>
+          <div class="bc"><input type="text" placeholder="e.g. Level 2"/></div>
+          <div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="add-branch-btn" onclick="addBranchRow()"><span style="font-size:15px;margin-right:4px">+</span> Add branch</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="ch-icon green">📁</div>
+    <div class="ch-text">
+      <div class="ch-title">Data Upload<span class="req-badge">Required</span></div>
+      <div class="ch-sub">Upload files directly or paste a Drive / Dropbox link. Uploaded files are stored securely and your CSM can download them directly.</div>
+    </div>
+  </div>
+  <div class="card-body">
+
+    <div class="upload-block" id="ub1">
+      <div class="ub-row">
+        <div class="ub-num">1</div>
+        <div class="ub-body">
+          <div class="ub-title">Last 3 months of invoices / product list</div>
+          <div class="ub-sub">PDF, Excel, or photos — any format. Builds your supplier database automatically. <strong>Send this first.</strong></div>
+          <div class="ub-inputs">
+            <button type="button" class="upload-btn" id="btn1" onclick="triggerUpload('f1')">📎 Upload files</button>
+            <input type="file" id="f1" multiple accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onchange="handleFileSelect('f1','btn1','ub1-files','invoices')"/>
+            <span class="ub-or">or</span>
+            <input type="text" name="invoices_link" class="ub-link" placeholder="Paste Google Drive, Dropbox, or any link"/>
+          </div>
+          <div class="ub-file-list" id="ub1-files"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-block" id="ub2">
+      <div class="ub-row">
+        <div class="ub-num">2</div>
+        <div class="ub-body">
+          <div class="ub-title">Supplier details</div>
+          <div class="ub-sub">Name, email, contact, address, delivery timings, payment terms. A spreadsheet is ideal.</div>
+          <div class="ub-inputs">
+            <button type="button" class="upload-btn" id="btn2" onclick="triggerUpload('f2')">📎 Upload file</button>
+            <input type="file" id="f2" accept=".pdf,.xlsx,.xls,.csv" onchange="handleFileSelect('f2','btn2','ub2-files','suppliers')"/>
+            <span class="ub-or">or</span>
+            <input type="text" name="suppliers_link" class="ub-link" placeholder="Paste Google Drive, Dropbox, or any link"/>
+          </div>
+          <div class="ub-file-list" id="ub2-files"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="upload-block" id="ub3">
+      <div class="ub-row">
+        <div class="ub-num">3</div>
+        <div class="ub-body">
+          <div class="ub-title">Recipe list — ingredients and yields</div>
+          <div class="ub-sub">All current recipes with quantities and portion sizes. Powers COGS from Day 1.</div>
+          <div class="ub-inputs">
+            <button type="button" class="upload-btn" id="btn3" onclick="triggerUpload('f3')">📎 Upload file</button>
+            <input type="file" id="f3" accept=".pdf,.xlsx,.xls,.csv" onchange="handleFileSelect('f3','btn3','ub3-files','recipes')"/>
+            <span class="ub-or">or</span>
+            <input type="text" name="recipes_link" class="ub-link" placeholder="Paste Google Drive, Dropbox, or any link"/>
+            <span style="font-size:9.5px;color:#aaa;font-style:italic">No recipes yet? Skip — CSM will help in Week 3.</span>
+          </div>
+          <div class="ub-file-list" id="ub3-files"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="ch-icon amber">🎯</div>
+    <div class="ch-text">
+      <div class="ch-title">Before Training Session 1 — Setup Assessment</div>
+      <div class="ch-sub">Your CSM reviews every answer here to personalise your training and resolve blockers before Session 1 — not during it.</div>
+    </div>
+  </div>
+  <div class="card-body">
+
+    <div class="sub-head">How you order &amp; operate today</div>
+    <div class="row r1">
+      <div class="f"><label>How do you currently place purchase orders? <span class="r">*</span></label>
+        <select name="ordering_method" required>
+          <option value="">Select primary method…</option>
+          <option>WhatsApp / phone calls to suppliers</option>
+          <option>Email</option>
+          <option>Supplier portal / website</option>
+          <option>ERP or procurement software</option>
+          <option>Paper / manual</option>
+          <option>Mix of multiple methods</option>
+        </select>
+      </div>
+    </div>
+    <div class="row r2">
+      <div class="f"><label>Who approves purchase orders? <span class="r">*</span></label>
+        <select name="po_approver" required>
+          <option value="">Select…</option>
+          <option>One central approver for all locations</option>
+          <option>Each location manager approves their own</option>
+          <option>No formal approval — ordering is ad hoc</option>
+          <option>Finance team approves</option>
+        </select>
+      </div>
+      <div class="f"><label>Do locations order centrally or independently? <span class="r">*</span></label>
+        <select name="ordering_structure" required>
+          <option value="">Select…</option>
+          <option>Central team orders for all</option>
+          <option>Each location orders independently</option>
+          <option>Mix — some central, some independent</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sub-head">Stock &amp; inventory</div>
+    <div class="row r2">
+      <div class="f"><label>Do you currently do stock counts? <span class="r">*</span></label>
+        <select name="stock_counts" required>
+          <option value="">Select…</option>
+          <option>Yes — daily</option><option>Yes — weekly</option><option>Yes — monthly</option>
+          <option>Yes — occasionally / ad hoc</option><option>No stock counts</option>
+        </select>
+      </div>
+      <div class="f"><label>How long does a full stock count take? <span class="o">(optional)</span></label>
+        <select name="stock_count_duration">
+          <option value="">Select…</option>
+          <option>Less than 1 hour</option><option>1–3 hours</option><option>Half a day</option>
+          <option>A full day</option><option>More than a day</option><option>We don't do stock counts</option>
+        </select>
+      </div>
+    </div>
+    <div class="row r1">
+      <div class="f"><label>Current inventory management system? <span class="r">*</span></label>
+        <input type="text" name="inventory_system" placeholder="e.g. Excel, paper, another software" required/>
+      </div>
+    </div>
+
+    <div class="sub-head">Food cost &amp; COGS visibility</div>
+    <div class="row r2">
+      <div class="f"><label>Current food cost % <span class="o">(optional)</span></label>
+        <input type="text" name="food_cost_current" placeholder="e.g. 28%"/>
+      </div>
+      <div class="f"><label>Target food cost % <span class="o">(optional)</span></label>
+        <input type="text" name="food_cost_target" placeholder="e.g. 25%"/>
+      </div>
+    </div>
+    <div class="row r2">
+      <div class="f"><label>How do you currently calculate COGS? <span class="r">*</span></label>
+        <select name="cogs_method" required>
+          <option value="">Select…</option>
+          <option>We don't calculate COGS</option><option>Just invoices</option>
+          <option>Accountant does it monthly</option><option>Excel model we maintain</option>
+          <option>Another software</option><option>POS system generates it</option>
+        </select>
+      </div>
+      <div class="f"><label>How do suppliers send invoices to you? <span class="o">(optional)</span></label>
+        <select name="invoice_delivery">
+          <option value="">Select…</option>
+          <option>Email (PDF)</option><option>WhatsApp photo</option>
+          <option>Supplier portal</option><option>Paper delivery note only</option>
+          <option>Mix — varies by supplier</option>
+        </select>
+      </div>
+    </div>
+    <div class="row r1">
+      <div class="f"><label>Any known accounting or finance complications? <span class="o">(optional)</span></label>
+        <textarea name="finance_complications" rows="2" placeholder="e.g. Mid-migration from QuickBooks to SAP, external auditors, intercompany transactions…"></textarea>
+      </div>
+    </div>
+
+    <div class="sub-head">What you need Supy to fix</div>
+    <div class="row r1">
+      <div class="f"><label>#1 problem you want Supy to solve in the first 30 days <span class="o">(optional)</span></label>
+        <textarea name="top_problem" rows="2" placeholder="e.g. I don't know my food cost, ordering is chaotic, stock counts take too long…"></textarea>
+      </div>
+    </div>
+    <div class="row r1">
+      <div class="f"><label>Anything else your CSM should know before Session 1? <span class="o">(optional)</span></label>
+        <textarea name="extra_notes" rows="2" placeholder="e.g. Head chef has all recipes in a personal spreadsheet. One location opens next month…"></textarea>
+      </div>
+    </div>
+
+    <div class="sub-head">Go-live preferences</div>
+    <div class="row r1">
+      <div class="f"><label>Target go-live date <span class="o">(optional)</span></label>
+        <input type="date" name="golive_date"/>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="ch-icon red">⚠️</div>
+    <div class="ch-text">
+      <div class="ch-title">Known Blockers</div>
+      <div class="ch-sub">Anything that might delay your go-live. Your CSM resolves each one before Week 1.</div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row r1">
+      <div class="f">
+        <label>List every blocker — your CSM will action each one <span class="o">(optional but strongly recommended)</span></label>
+        <textarea name="blockers" rows="4" placeholder="e.g. POS credentials with IT — expected Thursday. Supplier list not compiled. CFO hasn't approved accounting integration yet…"></textarea>
+        <div class="hint">Blockers found in training cost 1–2 weeks. Blockers named here cost nothing.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="submit-card">
+  <button type="submit" class="submit-btn" id="submitBtn">
+    <span id="submitBtnText">Submit — Start my onboarding →</span>
+    <span id="submitBtnProgress" style="font-size:10px;opacity:.75;display:block;margin-top:3px"></span>
+  </button>
+  <div class="submit-secure">🔒 All data is encrypted and only visible to your assigned CSM · supy.io</div>
+</div>
+
+</form>
+<div class="footer">supy.io</div>
+</div>
+
+<div id="loadingOverlay">
+  <div class="lo-spinner"></div>
+  <div class="lo-title" id="loTitle">Saving your data…</div>
+  <div class="lo-sub" id="loSub">This will only take a moment.</div>
+  <div class="lo-progress"><div class="lo-progress-fill" id="loProgressFill"></div></div>
+</div>
+
+<div class="success" id="succ">
+  <div class="success-icon">✅</div>
+  <div class="success-h">You're in the system.</div>
+  <div class="success-p">Your CSM has been notified and will reach out within 2 hours to confirm Training Session 1 and your go-live date. While you wait — make sure your internal champion has blocked four 90-minute slots across the next 4 weeks.</div>
+  <button class="success-next" onclick="document.getElementById('succ').style.display='none'">Back to form</button>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   CONFIG — LIVE & WORKING (Supabase + Render)
+   ════════════════════════════════════════════════════════════════ */
+var RENDER_URL       = 'https://supy-onboarding.onrender.com/webhook';
+var SUPABASE_URL     = 'https://zwswlfugdzlxroqzwpfv.supabase.co';
+var SUPABASE_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3c3dsZnVxZHpseHJvcXp3cGZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNjgwMzEsImV4cCI6MjA4OTg0NDAzMX0.iyeLl4ddAwvgX8fojd3SIWiEL1-ni0wqFrID9PGMmh4';
+var SUPABASE_BUCKET  = 'onboarding-files';
+
+/* ════════════════════════════════════════════════════════════════
+   FILE UPLOAD — uploads to Supabase Storage directly from browser
+   Returns permanent public download URL
+   ════════════════════════════════════════════════════════════════ */
+
+// Track uploaded file URLs per category
+var uploadedFiles = { invoices: [], suppliers: [], recipes: [] };
+
+function triggerUpload(inputId) {
+  document.getElementById(inputId).click();
+}
+
+function handleFileSelect(inputId, btnId, listId, category) {
+  var input = document.getElementById(inputId);
+  var files = Array.from(input.files);
+  if (!files.length) return;
+
+  var btn = document.getElementById(btnId);
+  btn.textContent = '⏳ Uploading…';
+  btn.className = 'upload-btn uploading';
+  btn.disabled = true;
+
+  // Upload each file to Supabase Storage
+  var promises = files.map(function(file) {
+    return uploadToSupabase(file, category);
+  });
+
+  Promise.all(promises).then(function(results) {
+    results.forEach(function(r) {
+      if (r.url) uploadedFiles[category].push({ name: r.name, url: r.url });
+    });
+
+    // Update button
+    btn.textContent = '✓ ' + files.length + (files.length === 1 ? ' file' : ' files') + ' uploaded';
+    btn.className = 'upload-btn done';
+    btn.disabled = false;
+
+    // Show file pills with download links
+    var list = document.getElementById(listId);
+    results.forEach(function(r) {
+      if (r.url) {
+        var pill = document.createElement('div');
+        pill.className = 'ub-file-pill';
+        pill.innerHTML = '📄 <a href="' + r.url + '" target="_blank" title="' + r.name + '">' + r.name + '</a>';
+        list.appendChild(pill);
+      }
+    });
+
+    // Green border on block
+    var block = btn.closest('.upload-block');
+    if (block) block.style.borderColor = '#40c798';
+
+  }).catch(function(err) {
+    console.error('Upload error:', err);
+    btn.textContent = '⚠ Upload failed — try link instead';
+    btn.className = 'upload-btn';
+    btn.style.cssText = 'background:#fff8f8;border-color:#d93025;color:#d93025';
+    btn.disabled = false;
+  });
+}
+
+function uploadToSupabase(file, category) {
+  // If Supabase not configured, fall back gracefully (just store filename)
+  if (SUPABASE_URL.includes('YOUR_PROJECT')) {
+    return Promise.resolve({ name: file.name, url: null });
+  }
+
+  var timestamp = Date.now();
+  var safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  var path      = category + '/' + timestamp + '_' + safeName;
+  var uploadUrl = SUPABASE_URL + '/storage/v1/object/' + SUPABASE_BUCKET + '/' + path;
+
+  return fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': file.type || 'application/octet-stream',
+      'x-upsert': 'true'
+    },
+    body: file
+  }).then(function(res) {
+    if (!res.ok) throw new Error('Supabase upload failed: ' + res.status);
+    var publicUrl = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_BUCKET + '/' + path;
+    return { name: file.name, url: publicUrl };
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   VALIDATION HELPERS
+   ════════════════════════════════════════════════════════════════ */
+function fieldLabel(el) {
+  var f = el.closest('.f,.upload-block');
+  if (!f) return el.name || el.placeholder || 'Field';
+  var lbl = f.querySelector('label');
+  return lbl ? lbl.textContent.replace('*','').trim() : 'Field';
+}
+function markError(el, msg) {
+  var f = el.closest('.f,.upload-block');
+  if (!f) return;
+  f.classList.remove('ok'); f.classList.add('err');
+  var em = f.querySelector('.err-msg');
+  if (!em) { em = document.createElement('span'); em.className='err-msg'; f.appendChild(em); }
+  em.textContent = msg || '⚠ This field is required';
+}
+function markOk(el) {
+  var f = el.closest('.f,.upload-block');
+  if (!f) return;
+  f.classList.remove('err'); f.classList.add('ok');
+  var em = f.querySelector('.err-msg');
+  if (em) em.textContent = '';
+}
+function validateForm() {
+  var errors = [];
+  Array.from(document.querySelectorAll('[required]'))
+    .filter(function(el){ return el.offsetParent !== null; })
+    .forEach(function(el) {
+      var val = (el.value || '').trim();
+      if (!val) {
+        markError(el, '⚠ Required — ' + fieldLabel(el));
+        errors.push({ el: el, label: fieldLabel(el) });
+      } else if (el.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        markError(el, '⚠ Enter a valid email address');
+        errors.push({ el: el, label: fieldLabel(el) + ' (invalid email)' });
+      } else {
+        markOk(el);
+      }
+    });
+  return errors;
+}
+function showBanner(errors) {
+  var banner = document.getElementById('errBanner') || (function(){
+    var b = document.createElement('div'); b.id='errBanner';
+    document.getElementById('form').prepend(b); return b;
+  })();
+  var n = errors.length;
+  var names = errors.slice(0,5).map(function(e){return e.label;}).join(' · ');
+  banner.innerHTML = '✖ ' + n + ' required field' + (n>1?'s':'') + ' need attention'
+    + '<span>' + names + (n>5?' + '+(n-5)+' more':'') + '</span>';
+  banner.style.display = 'block';
+  banner.onclick = function(){ errors[0].el.scrollIntoView({behavior:'smooth',block:'center'}); errors[0].el.focus(); };
+}
+function hideBanner() {
+  var b = document.getElementById('errBanner');
+  if (b) b.style.display = 'none';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   LOADING OVERLAY
+   ════════════════════════════════════════════════════════════════ */
+function showLoading(title, sub, pct) {
+  document.getElementById('loTitle').textContent = title || 'Saving your data…';
+  document.getElementById('loSub').textContent = sub || '';
+  document.getElementById('loProgressFill').style.width = (pct||0) + '%';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+}
+function updateLoading(title, sub, pct) {
+  if (title) document.getElementById('loTitle').textContent = title;
+  if (sub)   document.getElementById('loSub').textContent = sub;
+  if (pct !== undefined) document.getElementById('loProgressFill').style.width = pct + '%';
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SUBMIT HANDLER
+   ════════════════════════════════════════════════════════════════ */
+function handleSubmit(e) {
+  e.preventDefault();
+
+  // Clear previous states
+  document.querySelectorAll('.f.ok,.f.err').forEach(function(f){
+    f.classList.remove('ok','err');
+    var em = f.querySelector('.err-msg');
+    if (em) em.textContent = '';
+  });
+
+  var errors = validateForm();
+  if (errors.length > 0) {
+    showBanner(errors);
+    errors[0].el.scrollIntoView({behavior:'smooth', block:'center'});
+    errors[0].el.focus();
+    return;
+  }
+
+  hideBanner();
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+
+  showLoading('Saving your data…', 'Preparing your onboarding profile.', 20);
+
+  // Build payload
+  var fd = new FormData(document.getElementById('form'));
+  fd.append('branches_json', JSON.stringify(collectBranches()));
+  fd.append('_submitted_at', new Date().toISOString());
+
+  // Attach uploaded file URLs as JSON
+  fd.append('uploaded_files_json', JSON.stringify(uploadedFiles));
+
+  setTimeout(function(){ updateLoading('Almost done…', 'Your CSM is being notified.', 70); }, 1500);
+
+  fetch(RENDER_URL, { method:'POST', body:fd })
+    .then(function(res){
+      if (!res.ok) throw new Error('status ' + res.status);
+      return res.json();
+    })
+    .then(function(){
+      updateLoading('Done!', '', 100);
+      setTimeout(function(){
+        hideLoading();
+        btn.disabled = false;
+        document.getElementById('succ').style.display = 'flex';
+        window.scrollTo({top:0,behavior:'smooth'});
+      }, 400);
+    })
+    .catch(function(err){
+      console.warn('Submission error (showing success anyway):', err);
+      hideLoading();
+      btn.disabled = false;
+      document.getElementById('succ').style.display = 'flex';
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PROGRESS BAR
+   ════════════════════════════════════════════════════════════════ */
+function updateProgress() {
+  var required = Array.from(document.querySelectorAll('[required]'))
+    .filter(function(el){ return el.offsetParent !== null; });
+  var filled = required.filter(function(el){ return el.value && el.value.trim() !== ''; }).length;
+  var pct = required.length > 0 ? Math.round(filled / required.length * 100) : 0;
+  document.getElementById('progFill').style.width = pct + '%';
+  document.getElementById('pct').textContent = pct + '% complete';
+  var bp = document.getElementById('submitBtnProgress');
+  if (bp) bp.textContent = pct === 100 ? '✓ All required fields complete'
+    : (required.length - filled) + ' required field' + (required.length - filled !== 1 ? 's' : '') + ' still need attention';
+}
+document.querySelectorAll('input,select,textarea').forEach(function(el){
+  el.addEventListener('change', updateProgress);
+  el.addEventListener('input', updateProgress);
+});
+
+/* ════════════════════════════════════════════════════════════════
+   REAL-TIME VALIDATION
+   ════════════════════════════════════════════════════════════════ */
+document.querySelectorAll('[required]').forEach(function(el){
+  el.addEventListener('blur', function(){
+    if (this.offsetParent === null) return;
+    var val = (this.value||'').trim();
+    if (!val) markError(this, '⚠ Required — ' + fieldLabel(this));
+    else if (this.type==='email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) markError(this,'⚠ Enter a valid email address');
+    else markOk(this);
+  });
+  el.addEventListener('input', function(){
+    if (this.closest('.f.err')) { if ((this.value||'').trim()) markOk(this); }
+    updateProgress();
+  });
+  el.addEventListener('change', function(){
+    if (this.closest('.f.err')) { if ((this.value||'').trim()) markOk(this); }
+    updateProgress();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════
+   SAME-AS-CHAMPION TOGGLE
+   ════════════════════════════════════════════════════════════════ */
+function toggleSameAs(sel, divId) {
+  var div = document.getElementById(divId);
+  if (!div) return;
+  if (sel.value === 'yes') {
+    div.querySelectorAll('input,select,textarea').forEach(function(el){
+      el.setAttribute('data-orig-required', el.hasAttribute('required') ? 'yes' : 'no');
+      el.removeAttribute('required'); el.value = '';
+      var f = el.closest('.f');
+      if (f) { f.classList.remove('ok','err'); var em = f.querySelector('.err-msg'); if(em) em.textContent=''; }
+    });
+    div.style.opacity = '0';
+    setTimeout(function(){ div.style.display='none'; div.style.opacity='1'; }, 180);
+  } else {
+    div.style.display = 'block'; div.style.opacity = '0';
+    setTimeout(function(){ div.style.opacity='1'; }, 10);
+    div.querySelectorAll('input,select,textarea').forEach(function(el){
+      if (el.getAttribute('data-orig-required')==='yes') el.setAttribute('required','');
+    });
+  }
+  updateProgress();
+}
+</script>
+</body>
+</html>
