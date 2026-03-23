@@ -1,7 +1,10 @@
 import os
+import io
+import hashlib
+import time
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -10,6 +13,11 @@ CORS(app)
 CLIENT_ID     = os.environ.get("CLIENT_ID", "d5f491d5-9206-422b-97b1-e037b4f06c45")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "ce5b4a8c-3d53-4579-bbf6-783f9a149ab1")
 REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "na1-ddcd-e6ae-4cf6-82b3-439b1efaa389")
+
+CLOUDINARY_CLOUD = "dnrhbyluy"
+CLOUDINARY_KEY   = "451397425931284"
+CLOUDINARY_SECRET = "FNMd9WXdEe8CtTm94tnA7RBBR3c"
+
 NETLIFY_FORMS_URL = "https://app.netlify.com/sites/wonderful-pothos-f912a1/forms"
 
 def get_token():
@@ -20,6 +28,39 @@ def get_token():
         "refresh_token": REFRESH_TOKEN
     })
     return r.json().get("access_token")
+
+def upload_to_cloudinary(file_obj, filename, folder):
+    """Upload a file to Cloudinary and return the secure URL."""
+    try:
+        file_bytes = file_obj.read()
+        timestamp = str(int(time.time()))
+        public_id = folder + '/' + filename.replace(' ', '_')
+
+        # Generate signature
+        sig_str = 'public_id=' + public_id + '&timestamp=' + timestamp + CLOUDINARY_SECRET
+        signature = hashlib.sha1(sig_str.encode('utf-8')).hexdigest()
+
+        upload_url = 'https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD + '/raw/upload'
+
+        response = requests.post(upload_url, data={
+            'api_key':   CLOUDINARY_KEY,
+            'timestamp': timestamp,
+            'public_id': public_id,
+            'signature': signature,
+        }, files={
+            'file': (filename, io.BytesIO(file_bytes), 'application/octet-stream')
+        })
+
+        if response.status_code == 200:
+            url = response.json().get('secure_url', '')
+            print('Uploaded: ' + filename + ' -> ' + url)
+            return url
+        else:
+            print('Cloudinary error for ' + filename + ': ' + response.text)
+            return None
+    except Exception as e:
+        print('Upload exception: ' + str(e))
+        return None
 
 def row(label, value):
     v = str(value).strip() if value else ''
@@ -44,13 +85,30 @@ def handle():
 
         print("NEW SUBMISSION from: " + email)
 
-        # Collect uploaded filenames — form sends as 'invoices', 'supplier_details', 'recipe_list'
-        file_names = {}
-        for field in ['invoices', 'supplier_details', 'recipe_list']:
-            files = request.files.getlist(field)
-            names = [f.filename for f in files if f and f.filename]
-            file_names[field] = ', '.join(names) if names else None
+        # Create folder name: email-date e.g. vaishnavi-supy-io-2026-03-23
+        folder_name = 'supy-onboarding/' + email.replace('@', '-').replace('.', '-') + '-' + datetime.now().strftime('%Y-%m-%d')
 
+        # Upload files to Cloudinary
+        file_data = {}
+        field_map = {
+            'invoices':        'Invoices',
+            'supplier_details': 'Supplier Details',
+            'recipe_list':     'Recipe List'
+        }
+
+        for field, label in field_map.items():
+            uploaded_files = request.files.getlist(field)
+            links = []
+            for f in uploaded_files:
+                if f and f.filename:
+                    url = upload_to_cloudinary(f, f.filename, folder_name)
+                    if url:
+                        links.append((f.filename, url))
+                    else:
+                        links.append((f.filename, None))
+            file_data[field] = links
+
+        # HubSpot token
         token = get_token()
         headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
 
@@ -89,20 +147,23 @@ def handle():
         if not cid:
             return jsonify({"error": "no contact id"}), 500
 
-        def file_row(label, field):
-            names = file_names.get(field)
-            link  = d.get(field + '_link', '').strip()
+        # Build file section with clickable links
+        def file_section(field, label):
+            links = file_data.get(field, [])
+            drive_link = d.get(field + '_link', '').strip()
             out = ''
-            if names:
-                out += '<b>' + label + ':</b> ' + names + '<br>'
-            if link:
-                out += '<b>' + label + ' Link:</b> <a href="' + link + '">' + link + '</a><br>'
-            if not names and not link:
+            for fname, url in links:
+                if url:
+                    out += '<b>' + label + ':</b> <a href="' + url + '">' + fname + '</a><br>'
+                else:
+                    out += '<b>' + label + ':</b> ' + fname + ' (upload failed)<br>'
+            if drive_link:
+                out += '<b>' + label + ' Link:</b> <a href="' + drive_link + '">' + drive_link + '</a><br>'
+            if not links and not drive_link:
                 out += '<b>' + label + ':</b> Not provided<br>'
             return out
 
-        # IT Contact — form uses id="it_same" with no name, so we use it_same_as_champion
-        # which is set by the HTML via a hidden input
+        # IT Contact section
         it_same = d.get('it_same_as_champion', '').lower()
         if it_same == 'yes':
             it_section = (
@@ -127,7 +188,6 @@ def handle():
 
         submitted = datetime.now().strftime('%d %b %Y at %H:%M')
 
-        # IMPORTANT: field names match the actual HTML form names exactly
         note = (
             '<h2>SUPY ONBOARDING</h2>'
             '<p><b>Submitted:</b> ' + submitted + '</p><br>'
@@ -150,35 +210,33 @@ def handle():
             + it_section
 
             + '<h3>OPERATIONS</h3>'
-            + row('Order Method', d.get('ordering_method'))        # form: ordering_method
+            + row('Order Method', d.get('ordering_method'))
             + row('PO Approver', d.get('po_approver'))
             + row('Ordering Structure', d.get('ordering_structure'))
-            + row('Stock Counts', d.get('stock_counts'))            # form: stock_counts
+            + row('Stock Counts', d.get('stock_counts'))
             + row('Stock Count Duration', d.get('stock_count_duration'))
             + row('Inventory System', d.get('inventory_system'))
             + '<br>'
 
             '<h3>FOOD COST</h3>'
-            + row('Current Food Cost %', d.get('food_cost_current'))  # form: food_cost_current
-            + row('Target Food Cost %', d.get('food_cost_target'))    # form: food_cost_target
+            + row('Current Food Cost %', d.get('food_cost_current'))
+            + row('Target Food Cost %', d.get('food_cost_target'))
             + row('COGS Method', d.get('cogs_method'))
             + row('Invoice Delivery', d.get('invoice_delivery'))
-            + row('Finance Complications', d.get('finance_complications'))  # form: finance_complications
+            + row('Finance Complications', d.get('finance_complications'))
             + '<br>'
 
             '<h3>GOALS AND BLOCKERS</h3>'
             + row('Top Problem to Solve', d.get('top_problem'))
-            + row('CSM Notes', d.get('extra_notes'))               # form: extra_notes
-            + row('Known Blockers', d.get('blockers'))             # form: blockers
-            + row('Target Go-Live', d.get('golive_date'))          # form: golive_date
+            + row('CSM Notes', d.get('extra_notes'))
+            + row('Known Blockers', d.get('blockers'))
+            + row('Target Go-Live', d.get('golive_date'))
             + '<br>'
 
             '<h3>UPLOADED FILES</h3>'
-            + file_row('Invoices', 'invoices')
-            + file_row('Supplier Details', 'supplier_details')
-            + file_row('Recipe List', 'recipe_list')
-            + '<br>'
-            + '<p><b>Download files:</b> <a href="' + NETLIFY_FORMS_URL + '">Netlify Forms Dashboard</a></p>'
+            + file_section('invoices', 'Invoices')
+            + file_section('supplier_details', 'Supplier Details')
+            + file_section('recipe_list', 'Recipe List')
         )
 
         note_r = requests.post(
@@ -193,11 +251,6 @@ def handle():
             }
         )
         print("Note status: " + str(note_r.status_code))
-        if note_r.status_code in [200, 201]:
-            print("Note attached successfully!")
-        else:
-            print("Note error: " + note_r.text)
-
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
