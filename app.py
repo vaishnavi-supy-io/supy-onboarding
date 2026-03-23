@@ -44,7 +44,7 @@ def handle():
 
         print("NEW SUBMISSION from: " + email)
 
-        # Collect uploaded filenames
+        # Collect uploaded filenames — form sends as 'invoices', 'supplier_details', 'recipe_list'
         file_names = {}
         for field in ['invoices', 'supplier_details', 'recipe_list']:
             files = request.files.getlist(field)
@@ -101,12 +101,14 @@ def handle():
                 out += '<b>' + label + ':</b> Not provided<br>'
             return out
 
+        # IT Contact — form uses id="it_same" with no name, so we use it_same_as_champion
+        # which is set by the HTML via a hidden input
         it_same = d.get('it_same_as_champion', '').lower()
         if it_same == 'yes':
             it_section = (
                 '<h3>IT CONTACT</h3>'
                 '<b>Same as Internal Champion</b> — '
-                + d.get('champion_name','') + ' (' + d.get('champion_email','') + ')<br>'
+                + d.get('champion_name', '') + ' (' + d.get('champion_email', '') + ')<br>'
                 + row('POS System', d.get('pos_system'))
                 + row('Accounting Software', d.get('accounting_software'))
                 + '<br>'
@@ -125,15 +127,18 @@ def handle():
 
         submitted = datetime.now().strftime('%d %b %Y at %H:%M')
 
+        # IMPORTANT: field names match the actual HTML form names exactly
         note = (
             '<h2>SUPY ONBOARDING</h2>'
             '<p><b>Submitted:</b> ' + submitted + '</p><br>'
+
             '<h3>INTERNAL CHAMPION</h3>'
             + row('Name', d.get('champion_name'))
             + row('Title', d.get('champion_title'))
             + row('Email', d.get('champion_email'))
             + row('Phone', d.get('champion_phone'))
             + '<br>'
+
             '<h3>FINANCE POC</h3>'
             + row('External Accounting Firm', d.get('accounting_external'))
             + row('Name', d.get('finance_name'))
@@ -141,28 +146,33 @@ def handle():
             + row('Email', d.get('finance_email'))
             + row('Phone', d.get('finance_phone'))
             + '<br>'
+
             + it_section
+
             + '<h3>OPERATIONS</h3>'
-            + row('Order Method', d.get('order_method'))
+            + row('Order Method', d.get('ordering_method'))        # form: ordering_method
             + row('PO Approver', d.get('po_approver'))
             + row('Ordering Structure', d.get('ordering_structure'))
-            + row('Stock Counts', d.get('stock_count_freq'))
+            + row('Stock Counts', d.get('stock_counts'))            # form: stock_counts
             + row('Stock Count Duration', d.get('stock_count_duration'))
             + row('Inventory System', d.get('inventory_system'))
             + '<br>'
+
             '<h3>FOOD COST</h3>'
-            + row('Current Food Cost %', d.get('current_food_cost'))
-            + row('Target Food Cost %', d.get('target_food_cost'))
+            + row('Current Food Cost %', d.get('food_cost_current'))  # form: food_cost_current
+            + row('Target Food Cost %', d.get('food_cost_target'))    # form: food_cost_target
             + row('COGS Method', d.get('cogs_method'))
             + row('Invoice Delivery', d.get('invoice_delivery'))
-            + row('Finance Complications', d.get('accounting_complications'))
+            + row('Finance Complications', d.get('finance_complications'))  # form: finance_complications
             + '<br>'
+
             '<h3>GOALS AND BLOCKERS</h3>'
             + row('Top Problem to Solve', d.get('top_problem'))
-            + row('CSM Notes', d.get('csm_notes'))
-            + row('Known Blockers', d.get('known_blockers'))
-            + row('Target Go-Live', d.get('target_golive_date'))
+            + row('CSM Notes', d.get('extra_notes'))               # form: extra_notes
+            + row('Known Blockers', d.get('blockers'))             # form: blockers
+            + row('Target Go-Live', d.get('golive_date'))          # form: golive_date
             + '<br>'
+
             '<h3>UPLOADED FILES</h3>'
             + file_row('Invoices', 'invoices')
             + file_row('Supplier Details', 'supplier_details')
@@ -183,6 +193,11 @@ def handle():
             }
         )
         print("Note status: " + str(note_r.status_code))
+        if note_r.status_code in [200, 201]:
+            print("Note attached successfully!")
+        else:
+            print("Note error: " + note_r.text)
+
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
