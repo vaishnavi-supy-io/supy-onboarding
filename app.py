@@ -52,7 +52,9 @@ def upload_to_cloudinary(file_obj, filename, folder):
         })
 
         if response.status_code == 200:
-            url = response.json().get('secure_url', '').replace('/raw/upload/', '/raw/upload/fl_attachment/')
+            raw_url = response.json().get('secure_url', '')
+            # Force download instead of browser preview
+            url = raw_url.replace('/raw/upload/', '/raw/upload/fl_attachment:' + filename.replace(' ', '_') + '/')
             print('Uploaded: ' + filename + ' -> ' + url)
             return url
         else:
