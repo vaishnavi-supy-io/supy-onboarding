@@ -30,31 +30,22 @@ def get_token():
     return r.json().get("access_token")
 
 def upload_to_cloudinary(file_obj, filename, folder):
-    """Upload a file to Cloudinary and return the secure URL."""
+    """Upload a file to Cloudinary using unsigned upload preset."""
     try:
         file_bytes = file_obj.read()
-        timestamp = str(int(time.time()))
         public_id = folder + '/' + filename.replace(' ', '_')
-
-        # Generate signature
-        sig_str = 'public_id=' + public_id + '&timestamp=' + timestamp + CLOUDINARY_SECRET
-        signature = hashlib.sha1(sig_str.encode('utf-8')).hexdigest()
 
         upload_url = 'https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD + '/raw/upload'
 
         response = requests.post(upload_url, data={
-            'api_key':   CLOUDINARY_KEY,
-            'timestamp': timestamp,
-            'public_id': public_id,
-            'signature': signature,
+            'upload_preset': 'ml_default',
+            'public_id':     public_id,
         }, files={
             'file': (filename, io.BytesIO(file_bytes), 'application/octet-stream')
         })
 
         if response.status_code == 200:
-            raw_url = response.json().get('secure_url', '')
-            # Force download instead of browser preview
-            url = raw_url.replace('/raw/upload/', '/raw/upload/fl_attachment:' + filename.replace(' ', '_') + '/')
+            url = response.json().get('secure_url', '')
             print('Uploaded: ' + filename + ' -> ' + url)
             return url
         else:
