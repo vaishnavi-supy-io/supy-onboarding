@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -11,8 +12,6 @@ CORS(app)
 CLIENT_ID     = os.environ.get("CLIENT_ID",     "d5f491d5-9206-422b-97b1-e037b4f06c45")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "ce5b4a8c-72ee-4ccc-91b6-25a40a7815c0")
 REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "na1-ddcd-e6ae-4cf6-82b3-439b1efaa389")
-
-NETLIFY_SITE  = "wonderful-pothos-f912a1"   # for the note footer link
 
 # ── Get a fresh HubSpot access token ─────────────────────────────
 def get_access_token():
@@ -80,7 +79,7 @@ def create_note(token, contact_id, note_body):
         print(f"   Note error: {eng_r.text}")
 
 # ── Build the formatted note body ────────────────────────────────
-def build_note(d, branches, file_names):
+def build_note(d, branches, uploaded_files):
     submitted = datetime.utcnow().strftime("%-d %b %Y at %H:%M UTC")
 
     it_same = d.get("it_same_as_champion", "").lower()
@@ -131,23 +130,31 @@ def build_note(d, branches, file_names):
         branch_section = "<i>No branch data provided.</i>"
 
     # File listing
-    def file_line(label, names, link):
+    def file_line(label, category_key, manual_link):
         parts = []
-        if names:
-            parts.append(", ".join(names))
-        if link:
-            parts.append(f'<a href="{link}">{link}</a>')
+        # Add Supabase links
+        for f in uploaded_files.get(category_key, []):
+            name = f.get('name', 'File')
+            url = f.get('url', '#')
+            parts.append(f'<a href="{url}" target="_blank">{name}</a>')
+        # Add manual link
+        if manual_link:
+            parts.append(f'<a href="{manual_link}" target="_blank">{manual_link}</a>')
+            
         return label + ": " + (" / ".join(parts) if parts else "—")
 
     files_block = (
-        file_line("Invoices", file_names.get("invoices", []), d.get("invoices_link", "")) + "<br>"
-        + file_line("Supplier Details", file_names.get("suppliers", []), d.get("suppliers_link", "")) + "<br>"
-        + file_line("Recipes", file_names.get("recipes", []), d.get("recipes_link", ""))
+        file_line("Invoices", "invoices", d.get("invoices_link", "")) + "<br>"
+        + file_line("Supplier Details", "suppliers", d.get("suppliers_link", "")) + "<br>"
+        + file_line("Recipes", "recipes", d.get("recipes_link", ""))
     )
 
     note = (
         f"<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3>"
         f"<p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: {submitted}</p>"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>COMPANY INFO</h4>"
+        f"Company Name: {d.get('company_name', '')}"
 
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>"
         f"Name: {d.get('champion_name', '')}<br>"
@@ -190,10 +197,7 @@ def build_note(d, branches, file_names):
         f"Target Go-Live: {d.get('golive_date', '')}"
 
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>UPLOADED FILES</h4>"
-        + files_block +
-
-        f"<p style='margin-top:14px;font-size:10px;color:#aaa'>"
-        f"Download files: <a href='https://app.netlify.com/sites/{NETLIFY_SITE}/forms'>Netlify Forms Dashboard</a></p>"
+        + files_block
     )
     return note
 
@@ -207,7 +211,7 @@ def webhook():
         resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
         return resp
 
-    # Parse form data (multipart — includes files)
+    # Parse form data
     d = request.form.to_dict()
 
     email = d.get("champion_email", "").strip()
@@ -218,18 +222,15 @@ def webhook():
     print(f"NEW SUBMISSION from: {email}")
     print(f"{'='*55}")
 
-    # Collect uploaded file names
-    file_names = {
-        "invoices":  [f.filename for f in request.files.getlist("invoices_files")  if f.filename],
-        "suppliers": [f.filename for f in request.files.getlist("suppliers_files") if f.filename],
-        "recipes":   [f.filename for f in request.files.getlist("recipes_files")   if f.filename],
-    }
-    for key, names in file_names.items():
-        if names:
-            print(f"   Files ({key}): {', '.join(names)}")
+    # Parse uploaded files JSON from Supabase
+    uploaded_files = {"invoices": [], "suppliers": [], "recipes": []}
+    try:
+        uploaded_files = json.loads(d.get("uploaded_files_json", "{}"))
+        print(f"   Parsed Supabase files successfully.")
+    except Exception as e:
+        print(f"   Error parsing uploaded_files_json: {e}")
 
     # Parse branch JSON
-    import json
     branches = []
     try:
         branches = json.loads(d.get("branches_json", "[]"))
@@ -264,17 +265,15 @@ def webhook():
         return jsonify({"error": "Contact upsert failed"}), 500
 
     # Build and attach note
-    note_body = build_note(d, branches, file_names)
+    note_body = build_note(d, branches, uploaded_files)
     create_note(token, contact_id, note_body)
 
     print(f"   Done — contact {contact_id} updated with note.")
     return jsonify({"status": "ok", "contact_id": contact_id}), 200
 
-
 @app.route("/")
 def index():
     return "Supy Onboarding Server is running.", 200
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
