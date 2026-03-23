@@ -1,7 +1,4 @@
 import os
-import io
-import hashlib
-import time
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -10,246 +7,275 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)
 
-CLIENT_ID     = os.environ.get("CLIENT_ID", "d5f491d5-9206-422b-97b1-e037b4f06c45")
-CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "ce5b4a8c-3d53-4579-bbf6-783f9a149ab1")
+# ── HubSpot credentials ───────────────────────────────────────────
+CLIENT_ID     = os.environ.get("CLIENT_ID",     "d5f491d5-9206-422b-97b1-e037b4f06c45")
+CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "ce5b4a8c-72ee-4ccc-91b6-25a40a7815c0")
 REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "na1-ddcd-e6ae-4cf6-82b3-439b1efaa389")
 
-CLOUDINARY_CLOUD = "dnrhbyluy"
-CLOUDINARY_KEY   = "451397425931284"
-CLOUDINARY_SECRET = "FNMd9WXdEe8CtTm94tnA7RBBR3c"
+NETLIFY_SITE  = "wonderful-pothos-f912a1"   # for the note footer link
 
-NETLIFY_FORMS_URL = "https://app.netlify.com/sites/wonderful-pothos-f912a1/forms"
-
-def get_token():
+# ── Get a fresh HubSpot access token ─────────────────────────────
+def get_access_token():
     r = requests.post("https://api.hubapi.com/oauth/v1/token", data={
         "grant_type":    "refresh_token",
         "client_id":     CLIENT_ID,
         "client_secret": CLIENT_SECRET,
-        "refresh_token": REFRESH_TOKEN
+        "refresh_token": REFRESH_TOKEN,
     })
     return r.json().get("access_token")
 
-def upload_to_cloudinary(file_obj, filename, folder):
-    """Upload a file to Cloudinary using unsigned upload preset."""
-    try:
-        file_bytes = file_obj.read()
-        public_id = folder + '/' + filename.replace(' ', '_')
+# ── Find or create a HubSpot contact, return its ID ──────────────
+def upsert_contact(token, email, firstname, lastname, phone, jobtitle):
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-        upload_url = 'https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD + '/raw/upload'
+    # Search for existing contact by email
+    search_r = requests.post(
+        "https://api.hubapi.com/crm/v3/objects/contacts/search",
+        headers=headers,
+        json={"filterGroups": [{"filters": [{"propertyName": "email", "operator": "EQ", "value": email}]}]}
+    )
+    results = search_r.json().get("results", [])
 
-        response = requests.post(upload_url, data={
-            'upload_preset': 'ml_default',
-            'public_id':     public_id,
-        }, files={
-            'file': (filename, io.BytesIO(file_bytes), 'application/octet-stream')
-        })
+    props = {"email": email, "firstname": firstname, "lastname": lastname, "jobtitle": jobtitle}
+    # Only include phone if it starts with + (HubSpot requires E.164 format)
+    if phone and phone.strip().startswith("+"):
+        props["phone"] = phone.strip()
 
-        if response.status_code == 200:
-            url = response.json().get('secure_url', '')
-            print('Uploaded: ' + filename + ' -> ' + url)
-            return url
-        else:
-            print('Cloudinary error for ' + filename + ': ' + response.text)
-            return None
-    except Exception as e:
-        print('Upload exception: ' + str(e))
-        return None
-
-def row(label, value):
-    v = str(value).strip() if value else ''
-    if not v or v.lower() == 'none':
-        return ''
-    return '<b>' + label + ':</b> ' + v + '<br>'
-
-@app.route('/', methods=['GET'])
-def health():
-    return 'Supy Onboarding Server is running.', 200
-
-@app.route('/webhook', methods=['POST', 'OPTIONS'])
-def handle():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-    try:
-        d = request.form.to_dict()
-        email = d.get('champion_email', '').strip()
-
-        if not email:
-            return jsonify({"error": "No email"}), 400
-
-        print("NEW SUBMISSION from: " + email)
-
-        # Create folder name: email-date e.g. vaishnavi-supy-io-2026-03-23
-        folder_name = 'supy-onboarding/' + email.replace('@', '-').replace('.', '-') + '-' + datetime.now().strftime('%Y-%m-%d')
-
-        # Upload files to Cloudinary
-        file_data = {}
-        field_map = {
-            'invoices':        'Invoices',
-            'supplier_details': 'Supplier Details',
-            'recipe_list':     'Recipe List'
-        }
-
-        for field, label in field_map.items():
-            uploaded_files = request.files.getlist(field)
-            links = []
-            for f in uploaded_files:
-                if f and f.filename:
-                    url = upload_to_cloudinary(f, f.filename, folder_name)
-                    if url:
-                        links.append((f.filename, url))
-                    else:
-                        links.append((f.filename, None))
-            file_data[field] = links
-
-        # HubSpot token
-        token = get_token()
-        headers = {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}
-
-        # Search for existing contact
-        search = requests.post(
-            'https://api.hubapi.com/crm/v3/objects/contacts/search',
+    if results:
+        contact_id = results[0]["id"]
+        requests.patch(
+            f"https://api.hubapi.com/crm/v3/objects/contacts/{contact_id}",
             headers=headers,
-            json={"filterGroups": [{"filters": [{"propertyName": "email", "operator": "EQ", "value": email}]}]}
-        ).json()
+            json={"properties": props}
+        )
+        print(f"   Updated existing contact {contact_id}")
+        return contact_id
+    else:
+        create_r = requests.post(
+            "https://api.hubapi.com/crm/v3/objects/contacts",
+            headers=headers,
+            json={"properties": props}
+        )
+        contact_id = create_r.json().get("id")
+        print(f"   Created new contact {contact_id}")
+        return contact_id
 
-        name  = d.get('champion_name', 'New User').strip()
-        parts = name.split()
-        phone = d.get('champion_phone', '')
+# ── Create a HubSpot note pinned to a contact ────────────────────
+def create_note(token, contact_id, note_body):
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    now_ms = int(datetime.utcnow().timestamp() * 1000)
 
-        props = {
-            "email":     email,
-            "firstname": parts[0],
-            "lastname":  ' '.join(parts[1:]) if len(parts) > 1 else 'User',
-            "jobtitle":  d.get('champion_title', '')
+    # Create the engagement (note)
+    eng_r = requests.post(
+        "https://api.hubapi.com/engagements/v1/engagements",
+        headers=headers,
+        json={
+            "engagement": {"active": True, "type": "NOTE", "timestamp": now_ms},
+            "associations": {"contactIds": [int(contact_id)]},
+            "metadata": {"body": note_body}
         }
-        if phone.startswith('+'):
-            props["phone"] = phone
+    )
+    print(f"   Note status: {eng_r.status_code}")
+    if eng_r.status_code not in (200, 201):
+        print(f"   Note error: {eng_r.text}")
 
-        cid = None
-        if search.get('total', 0) > 0:
-            cid = search['results'][0]['id']
-            requests.patch('https://api.hubapi.com/crm/v3/objects/contacts/' + cid,
-                           headers=headers, json={"properties": props})
-            print("Contact updated: " + cid)
-        else:
-            r = requests.post('https://api.hubapi.com/crm/v3/objects/contacts',
-                              headers=headers, json={"properties": props})
-            cid = r.json().get('id')
-            print("Contact created: " + str(cid))
+# ── Build the formatted note body ────────────────────────────────
+def build_note(d, branches, file_names):
+    submitted = datetime.utcnow().strftime("%-d %b %Y at %H:%M UTC")
 
-        if not cid:
-            return jsonify({"error": "no contact id"}), 500
-
-        # Build file section with clickable links
-        def file_section(field, label):
-            links = file_data.get(field, [])
-            drive_link = d.get(field + '_link', '').strip()
-            out = ''
-            for fname, url in links:
-                if url:
-                    out += '<b>' + label + ':</b> <a href="' + url + '">' + fname + '</a><br>'
-                else:
-                    out += '<b>' + label + ':</b> ' + fname + ' (upload failed)<br>'
-            if drive_link:
-                out += '<b>' + label + ' Link:</b> <a href="' + drive_link + '">' + drive_link + '</a><br>'
-            if not links and not drive_link:
-                out += '<b>' + label + ':</b> Not provided<br>'
-            return out
-
-        # IT Contact section
-        it_same = d.get('it_same_as_champion', '').lower()
-        if it_same == 'yes':
-            it_section = (
-                '<h3>IT CONTACT</h3>'
-                '<b>Same as Internal Champion</b> — '
-                + d.get('champion_name', '') + ' (' + d.get('champion_email', '') + ')<br>'
-                + row('POS System', d.get('pos_system'))
-                + row('Accounting Software', d.get('accounting_software'))
-                + '<br>'
-            )
-        else:
-            it_section = (
-                '<h3>IT CONTACT</h3>'
-                + row('Name', d.get('it_name'))
-                + row('Title', d.get('it_title'))
-                + row('Email', d.get('it_email'))
-                + row('Phone', d.get('it_phone'))
-                + row('POS System', d.get('pos_system'))
-                + row('Accounting Software', d.get('accounting_software'))
-                + '<br>'
-            )
-
-        submitted = datetime.now().strftime('%d %b %Y at %H:%M')
-
-        note = (
-            '<h2>SUPY ONBOARDING</h2>'
-            '<p><b>Submitted:</b> ' + submitted + '</p><br>'
-
-            '<h3>INTERNAL CHAMPION</h3>'
-            + row('Name', d.get('champion_name'))
-            + row('Title', d.get('champion_title'))
-            + row('Email', d.get('champion_email'))
-            + row('Phone', d.get('champion_phone'))
-            + '<br>'
-
-            '<h3>FINANCE POC</h3>'
-            + row('External Accounting Firm', d.get('accounting_external'))
-            + row('Name', d.get('finance_name'))
-            + row('Title', d.get('finance_title'))
-            + row('Email', d.get('finance_email'))
-            + row('Phone', d.get('finance_phone'))
-            + '<br>'
-
-            + it_section
-
-            + '<h3>OPERATIONS</h3>'
-            + row('Order Method', d.get('ordering_method'))
-            + row('PO Approver', d.get('po_approver'))
-            + row('Ordering Structure', d.get('ordering_structure'))
-            + row('Stock Counts', d.get('stock_counts'))
-            + row('Stock Count Duration', d.get('stock_count_duration'))
-            + row('Inventory System', d.get('inventory_system'))
-            + '<br>'
-
-            '<h3>FOOD COST</h3>'
-            + row('Current Food Cost %', d.get('food_cost_current'))
-            + row('Target Food Cost %', d.get('food_cost_target'))
-            + row('COGS Method', d.get('cogs_method'))
-            + row('Invoice Delivery', d.get('invoice_delivery'))
-            + row('Finance Complications', d.get('finance_complications'))
-            + '<br>'
-
-            '<h3>GOALS AND BLOCKERS</h3>'
-            + row('Top Problem to Solve', d.get('top_problem'))
-            + row('CSM Notes', d.get('extra_notes'))
-            + row('Known Blockers', d.get('blockers'))
-            + row('Target Go-Live', d.get('golive_date'))
-            + '<br>'
-
-            '<h3>UPLOADED FILES</h3>'
-            + file_section('invoices', 'Invoices')
-            + file_section('supplier_details', 'Supplier Details')
-            + file_section('recipe_list', 'Recipe List')
+    it_same = d.get("it_same_as_champion", "").lower()
+    if it_same == "yes":
+        it_block = (
+            "<b>Same as Internal Champion</b> — "
+            + d.get("champion_name", "") + " (" + d.get("champion_email", "") + ")"
+        )
+    else:
+        it_block = (
+            "Name: " + d.get("it_name", "") + "<br>"
+            + "Title: " + d.get("it_title", "") + "<br>"
+            + "Email: " + d.get("it_email", "") + "<br>"
+            + "Phone: " + d.get("it_phone", "") + "<br>"
+            + "POS System: " + d.get("pos_system", "") + "<br>"
+            + "Accounting SW: " + d.get("accounting_software", "")
         )
 
-        note_r = requests.post(
-            'https://api.hubapi.com/crm/v3/objects/notes',
-            headers=headers,
-            json={
-                "properties": {
-                    "hs_note_body": note,
-                    "hs_timestamp": str(int(datetime.now().timestamp() * 1000))
-                },
-                "associations": [{"to": {"id": cid}, "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 202}]}]
-            }
+    # Branch table rows
+    branch_rows = ""
+    for i, b in enumerate(branches, 1):
+        hours = (b.get("open", "") + " – " + b.get("close", "")).strip(" –")
+        branch_rows += (
+            f"<tr>"
+            f"<td style='padding:5px 8px;border-bottom:1px solid #eee'>{i}</td>"
+            f"<td style='padding:5px 8px;border-bottom:1px solid #eee'><b>{b.get('name','')}</b></td>"
+            f"<td style='padding:5px 8px;border-bottom:1px solid #eee'>{b.get('address','')}</td>"
+            f"<td style='padding:5px 8px;border-bottom:1px solid #eee'>{b.get('cost_center','')}</td>"
+            f"<td style='padding:5px 8px;border-bottom:1px solid #eee'>{hours}</td>"
+            f"<td style='padding:5px 8px;border-bottom:1px solid #eee'>{b.get('details','')}</td>"
+            f"</tr>"
         )
-        print("Note status: " + str(note_r.status_code))
-        return jsonify({"status": "success"}), 200
+    if branch_rows:
+        branch_section = (
+            "<table style='border-collapse:collapse;width:100%;font-size:12px'>"
+            "<tr style='background:#321e57;color:#fff'>"
+            "<th style='padding:6px 8px'>#</th>"
+            "<th style='padding:6px 8px'>Branch Name</th>"
+            "<th style='padding:6px 8px'>Address</th>"
+            "<th style='padding:6px 8px'>Cost Center</th>"
+            "<th style='padding:6px 8px'>Hours</th>"
+            "<th style='padding:6px 8px'>Details</th>"
+            "</tr>"
+            + branch_rows +
+            "</table>"
+        )
+    else:
+        branch_section = "<i>No branch data provided.</i>"
 
-    except Exception as e:
-        print("ERROR: " + str(e))
-        return jsonify({"error": str(e)}), 500
+    # File listing
+    def file_line(label, names, link):
+        parts = []
+        if names:
+            parts.append(", ".join(names))
+        if link:
+            parts.append(f'<a href="{link}">{link}</a>')
+        return label + ": " + (" / ".join(parts) if parts else "—")
 
-if __name__ == '__main__':
+    files_block = (
+        file_line("Invoices", file_names.get("invoices", []), d.get("invoices_link", "")) + "<br>"
+        + file_line("Supplier Details", file_names.get("suppliers", []), d.get("suppliers_link", "")) + "<br>"
+        + file_line("Recipes", file_names.get("recipes", []), d.get("recipes_link", ""))
+    )
+
+    note = (
+        f"<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3>"
+        f"<p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: {submitted}</p>"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>"
+        f"Name: {d.get('champion_name', '')}<br>"
+        f"Title: {d.get('champion_title', '')}<br>"
+        f"Email: {d.get('champion_email', '')}<br>"
+        f"Phone: {d.get('champion_phone', '')}"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FINANCE POC</h4>"
+        f"External Accounting Firm: {d.get('accounting_external', '')}<br>"
+        f"Name: {d.get('finance_name', '')}<br>"
+        f"Title: {d.get('finance_title', '')}<br>"
+        f"Email: {d.get('finance_email', '')}<br>"
+        f"Phone: {d.get('finance_phone', '')}"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>IT CONTACT</h4>"
+        + it_block +
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>BRANCH CONFIGURATION</h4>"
+        + branch_section +
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>OPERATIONS</h4>"
+        f"Order Method: {d.get('ordering_method', '')}<br>"
+        f"PO Approver: {d.get('po_approver', '')}<br>"
+        f"Ordering Structure: {d.get('ordering_structure', '')}<br>"
+        f"Stock Counts: {d.get('stock_counts', '')}<br>"
+        f"Stock Count Duration: {d.get('stock_count_duration', '')}<br>"
+        f"Inventory System: {d.get('inventory_system', '')}"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FOOD COST</h4>"
+        f"Current Food Cost %: {d.get('food_cost_current', '')}<br>"
+        f"Target Food Cost %: {d.get('food_cost_target', '')}<br>"
+        f"COGS Method: {d.get('cogs_method', '')}<br>"
+        f"Invoice Delivery: {d.get('invoice_delivery', '')}<br>"
+        f"Finance Complications: {d.get('finance_complications', '')}"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>GOALS &amp; BLOCKERS</h4>"
+        f"Top Problem to Solve: {d.get('top_problem', '')}<br>"
+        f"CSM Notes: {d.get('extra_notes', '')}<br>"
+        f"Known Blockers: {d.get('blockers', '')}<br>"
+        f"Target Go-Live: {d.get('golive_date', '')}"
+
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>UPLOADED FILES</h4>"
+        + files_block +
+
+        f"<p style='margin-top:14px;font-size:10px;color:#aaa'>"
+        f"Download files: <a href='https://app.netlify.com/sites/{NETLIFY_SITE}/forms'>Netlify Forms Dashboard</a></p>"
+    )
+    return note
+
+# ── Webhook endpoint ──────────────────────────────────────────────
+@app.route("/webhook", methods=["POST", "OPTIONS"])
+def webhook():
+    if request.method == "OPTIONS":
+        resp = app.make_default_options_response()
+        resp.headers["Access-Control-Allow-Origin"]  = "*"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return resp
+
+    # Parse form data (multipart — includes files)
+    d = request.form.to_dict()
+
+    email = d.get("champion_email", "").strip()
+    if not email:
+        return jsonify({"error": "No champion email provided"}), 400
+
+    print(f"\n{'='*55}")
+    print(f"NEW SUBMISSION from: {email}")
+    print(f"{'='*55}")
+
+    # Collect uploaded file names
+    file_names = {
+        "invoices":  [f.filename for f in request.files.getlist("invoices_files")  if f.filename],
+        "suppliers": [f.filename for f in request.files.getlist("suppliers_files") if f.filename],
+        "recipes":   [f.filename for f in request.files.getlist("recipes_files")   if f.filename],
+    }
+    for key, names in file_names.items():
+        if names:
+            print(f"   Files ({key}): {', '.join(names)}")
+
+    # Parse branch JSON
+    import json
+    branches = []
+    try:
+        branches = json.loads(d.get("branches_json", "[]"))
+    except Exception:
+        pass
+    print(f"   Branches: {len(branches)}")
+
+    # Get HubSpot token
+    token = get_access_token()
+    if not token:
+        print("   ERROR: Could not get HubSpot access token")
+        return jsonify({"error": "HubSpot auth failed"}), 500
+
+    # Build name parts
+    full_name = d.get("champion_name", "").strip()
+    name_parts = full_name.split() if full_name else ["Client"]
+    firstname = name_parts[0]
+    lastname  = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+    # Upsert contact
+    contact_id = upsert_contact(
+        token,
+        email,
+        firstname,
+        lastname,
+        d.get("champion_phone", ""),
+        d.get("champion_title", "")
+    )
+
+    if not contact_id:
+        print("   ERROR: Could not create/update HubSpot contact")
+        return jsonify({"error": "Contact upsert failed"}), 500
+
+    # Build and attach note
+    note_body = build_note(d, branches, file_names)
+    create_note(token, contact_id, note_body)
+
+    print(f"   Done — contact {contact_id} updated with note.")
+    return jsonify({"status": "ok", "contact_id": contact_id}), 200
+
+
+@app.route("/")
+def index():
+    return "Supy Onboarding Server is running.", 200
+
+
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)
