@@ -59,7 +59,6 @@ textarea{resize:vertical;min-height:72px}
 .ub-inputs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
 .upload-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border:1.5px solid #7b51bf;border-radius:5px;font-size:10px;font-weight:600;color:#503390;background:#fff;cursor:pointer;transition:all .15s;flex-shrink:0;font-family:inherit}
 .upload-btn:hover{background:#ede9fb}
-.upload-btn.uploading{background:#fff8e6;border-color:#f59e0b;color:#92400e;cursor:wait}
 .upload-btn.done{background:#E8FAF0;border-color:#40c798;color:#1A8A5C}
 .ub-or{font-size:9px;color:#bbb;flex-shrink:0;font-weight:500}
 .ub-link{flex:1;min-width:180px;padding:6px 10px;border:1.5px solid #e0d8f0;border-radius:5px;font-family:inherit;font-size:11px;color:#1A1A2E;background:#fff;outline:none;transition:border-color .15s}
@@ -67,8 +66,6 @@ textarea{resize:vertical;min-height:72px}
 .ub-link::placeholder{color:#c0b8d8;font-size:10.5px}
 .ub-file-list{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
 .ub-file-pill{display:inline-flex;align-items:center;gap:4px;background:#f0f7ff;border:1px solid #bdd9f5;border-radius:4px;padding:3px 8px;font-size:9.5px;color:#1E5FA8;max-width:200px}
-.ub-file-pill a{color:#1E5FA8;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
-.ub-file-pill a:hover{text-decoration:underline}
 input[type=file]{display:none}
 /* branch table */
 .branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;width:100%}
@@ -123,7 +120,10 @@ input[type=file]{display:none}
 </style>
 
 <script>
-/* ── Branch table ─────────────────────────────────────────────── */
+/* ── CONFIG ── */
+var RENDER_URL = 'https://supy-onboarding.onrender.com/webhook';
+
+/* ── Branch table ── */
 function addBranchRow() {
   var c = document.getElementById('branchRows');
   var row = document.createElement('div');
@@ -164,6 +164,29 @@ function collectBranches() {
   });
   return branches;
 }
+
+/* ── FILE SELECTION (Simplified for Server Upload) ── */
+function triggerUpload(inputId) {
+  document.getElementById(inputId).click();
+}
+
+function handleFileSelect(inputId, btnId, listId) {
+  var input = document.getElementById(inputId);
+  var btn = document.getElementById(btnId);
+  var list = document.getElementById(listId);
+  
+  if (input.files.length > 0) {
+    btn.textContent = '✓ ' + input.files.length + (input.files.length === 1 ? ' file' : ' files') + ' selected';
+    btn.className = 'upload-btn done';
+    list.innerHTML = '';
+    Array.from(input.files).forEach(function(file) {
+      var pill = document.createElement('div');
+      pill.className = 'ub-file-pill';
+      pill.textContent = '📄 ' + file.name;
+      list.appendChild(pill);
+    });
+  }
+}
 </script>
 </head>
 <body>
@@ -181,7 +204,15 @@ function collectBranches() {
 <div class="wrap">
 <form id="form" onsubmit="handleSubmit(event)">
 
-<!-- ══ 1. TEAM & CONTACTS ══════════════════════════════════════ -->
+<div class="card">
+  <div class="card-body">
+    <div class="f">
+      <label>Company Name <span class="r">*</span></label>
+      <input type="text" name="company_name" placeholder="e.g. Cinnamon Group" required/>
+    </div>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-header">
     <div class="ch-icon navy">👥</div>
@@ -261,7 +292,6 @@ function collectBranches() {
   </div>
 </div>
 
-<!-- ══ 2. BRANCH CONFIGURATION ════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon navy">🏪</div>
@@ -303,7 +333,6 @@ function collectBranches() {
   </div>
 </div>
 
-<!-- ══ 3. DATA UPLOAD ══════════════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon green">📁</div>
@@ -314,55 +343,51 @@ function collectBranches() {
   </div>
   <div class="card-body">
 
-    <!-- Upload 1 — Invoices -->
-    <div class="upload-block" id="ub1">
+    <div class="upload-block">
       <div class="ub-row">
         <div class="ub-num">1</div>
         <div class="ub-body">
           <div class="ub-title">Last 3 months of invoices / product list</div>
-          <div class="ub-sub">PDF, Excel, or photos — any format. Builds your supplier database automatically. <strong>Send this first.</strong></div>
+          <div class="ub-sub">PDF, Excel, or photos — any format. Builds your supplier database automatically.</div>
           <div class="ub-inputs">
-            <button type="button" class="upload-btn" id="btn1" onclick="triggerUpload('f1')">📎 Upload files</button>
-            <input type="file" id="f1" multiple accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onchange="handleFileSelect('f1','btn1','ub1-files','invoices')"/>
+            <button type="button" class="upload-btn" id="btn1" onclick="triggerUpload('f1')">📎 Choose files</button>
+            <input type="file" name="invoices_files" id="f1" multiple accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png" onchange="handleFileSelect('f1','btn1','ub1-files')"/>
             <span class="ub-or">or</span>
-            <input type="text" name="invoices_link" class="ub-link" placeholder="Paste Google Drive, Dropbox, or any link"/>
+            <input type="text" name="invoices_link" class="ub-link" placeholder="Paste link"/>
           </div>
           <div class="ub-file-list" id="ub1-files"></div>
         </div>
       </div>
     </div>
 
-    <!-- Upload 2 — Suppliers -->
-    <div class="upload-block" id="ub2">
+    <div class="upload-block">
       <div class="ub-row">
         <div class="ub-num">2</div>
         <div class="ub-body">
           <div class="ub-title">Supplier details</div>
-          <div class="ub-sub">Name, email, contact, address, delivery timings, payment terms. A spreadsheet is ideal.</div>
+          <div class="ub-sub">Name, email, contact, address. A spreadsheet is ideal.</div>
           <div class="ub-inputs">
-            <button type="button" class="upload-btn" id="btn2" onclick="triggerUpload('f2')">📎 Upload file</button>
-            <input type="file" id="f2" accept=".pdf,.xlsx,.xls,.csv" onchange="handleFileSelect('f2','btn2','ub2-files','suppliers')"/>
+            <button type="button" class="upload-btn" id="btn2" onclick="triggerUpload('f2')">📎 Choose file</button>
+            <input type="file" name="suppliers_files" id="f2" accept=".pdf,.xlsx,.xls,.csv" onchange="handleFileSelect('f2','btn2','ub2-files')"/>
             <span class="ub-or">or</span>
-            <input type="text" name="suppliers_link" class="ub-link" placeholder="Paste Google Drive, Dropbox, or any link"/>
+            <input type="text" name="suppliers_link" class="ub-link" placeholder="Paste link"/>
           </div>
           <div class="ub-file-list" id="ub2-files"></div>
         </div>
       </div>
     </div>
 
-    <!-- Upload 3 — Recipes -->
-    <div class="upload-block" id="ub3">
+    <div class="upload-block">
       <div class="ub-row">
         <div class="ub-num">3</div>
         <div class="ub-body">
           <div class="ub-title">Recipe list — ingredients and yields</div>
-          <div class="ub-sub">All current recipes with quantities and portion sizes. Powers COGS from Day 1.</div>
+          <div class="ub-sub">All current recipes with quantities and portion sizes.</div>
           <div class="ub-inputs">
-            <button type="button" class="upload-btn" id="btn3" onclick="triggerUpload('f3')">📎 Upload file</button>
-            <input type="file" id="f3" accept=".pdf,.xlsx,.xls,.csv" onchange="handleFileSelect('f3','btn3','ub3-files','recipes')"/>
+            <button type="button" class="upload-btn" id="btn3" onclick="triggerUpload('f3')">📎 Choose file</button>
+            <input type="file" name="recipes_files" id="f3" accept=".pdf,.xlsx,.xls,.csv" onchange="handleFileSelect('f3','btn3','ub3-files')"/>
             <span class="ub-or">or</span>
-            <input type="text" name="recipes_link" class="ub-link" placeholder="Paste Google Drive, Dropbox, or any link"/>
-            <span style="font-size:9.5px;color:#aaa;font-style:italic">No recipes yet? Skip — CSM will help in Week 3.</span>
+            <input type="text" name="recipes_link" class="ub-link" placeholder="Paste link"/>
           </div>
           <div class="ub-file-list" id="ub3-files"></div>
         </div>
@@ -372,13 +397,12 @@ function collectBranches() {
   </div>
 </div>
 
-<!-- ══ 4. PRE-TRAINING ASSESSMENT ═════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon amber">🎯</div>
     <div class="ch-text">
       <div class="ch-title">Before Training Session 1 — Setup Assessment</div>
-      <div class="ch-sub">Your CSM reviews every answer here to personalise your training and resolve blockers before Session 1 — not during it.</div>
+      <div class="ch-sub">Your CSM reviews every answer here to personalise your training.</div>
     </div>
   </div>
   <div class="card-body">
@@ -469,19 +493,19 @@ function collectBranches() {
     </div>
     <div class="row r1">
       <div class="f"><label>Any known accounting or finance complications? <span class="o">(optional)</span></label>
-        <textarea name="finance_complications" rows="2" placeholder="e.g. Mid-migration from QuickBooks to SAP, external auditors, intercompany transactions…"></textarea>
+        <textarea name="finance_complications" rows="2" placeholder="Intercompany transactions…"></textarea>
       </div>
     </div>
 
     <div class="sub-head">What you need Supy to fix</div>
     <div class="row r1">
       <div class="f"><label>#1 problem you want Supy to solve in the first 30 days <span class="o">(optional)</span></label>
-        <textarea name="top_problem" rows="2" placeholder="e.g. I don't know my food cost, ordering is chaotic, stock counts take too long…"></textarea>
+        <textarea name="top_problem" rows="2" placeholder="e.g. Food cost visibility…"></textarea>
       </div>
     </div>
     <div class="row r1">
-      <div class="f"><label>Anything else your CSM should know before Session 1? <span class="o">(optional)</span></label>
-        <textarea name="extra_notes" rows="2" placeholder="e.g. Head chef has all recipes in a personal spreadsheet. One location opens next month…"></textarea>
+      <div class="f"><label>Anything else your CSM should know? <span class="o">(optional)</span></label>
+        <textarea name="extra_notes" rows="2" placeholder="e.g. One location opens next month…"></textarea>
       </div>
     </div>
 
@@ -495,40 +519,35 @@ function collectBranches() {
   </div>
 </div>
 
-<!-- ══ 5. BLOCKERS ════════════════════════════════════════════ -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon red">⚠️</div>
     <div class="ch-text">
       <div class="ch-title">Known Blockers</div>
-      <div class="ch-sub">Anything that might delay your go-live. Your CSM resolves each one before Week 1.</div>
+      <div class="ch-sub">Anything that might delay your go-live.</div>
     </div>
   </div>
   <div class="card-body">
     <div class="row r1">
       <div class="f">
-        <label>List every blocker — your CSM will action each one <span class="o">(optional but strongly recommended)</span></label>
-        <textarea name="blockers" rows="4" placeholder="e.g. POS credentials with IT — expected Thursday. Supplier list not compiled. CFO hasn't approved accounting integration yet…"></textarea>
-        <div class="hint">Blockers found in training cost 1–2 weeks. Blockers named here cost nothing.</div>
+        <label>List every blocker <span class="o">(optional)</span></label>
+        <textarea name="blockers" rows="4" placeholder="e.g. POS credentials with IT…"></textarea>
       </div>
     </div>
   </div>
 </div>
 
-<!-- SUBMIT -->
 <div class="submit-card">
   <button type="submit" class="submit-btn" id="submitBtn">
     <span id="submitBtnText">Submit — Start my onboarding →</span>
     <span id="submitBtnProgress" style="font-size:10px;opacity:.75;display:block;margin-top:3px"></span>
   </button>
-  <div class="submit-secure">🔒 All data is encrypted and only visible to your assigned CSM · supy.io</div>
 </div>
 
 </form>
 <div class="footer">supy.io</div>
 </div>
 
-<!-- LOADING OVERLAY -->
 <div id="loadingOverlay">
   <div class="lo-spinner"></div>
   <div class="lo-title" id="loTitle">Saving your data…</div>
@@ -536,163 +555,30 @@ function collectBranches() {
   <div class="lo-progress"><div class="lo-progress-fill" id="loProgressFill"></div></div>
 </div>
 
-<!-- SUCCESS -->
 <div class="success" id="succ">
   <div class="success-icon">✅</div>
   <div class="success-h">You're in the system.</div>
-  <div class="success-p">Your CSM has been notified and will reach out within 2 hours to confirm Training Session 1 and your go-live date. While you wait — make sure your internal champion has blocked four 90-minute slots across the next 4 weeks.</div>
-  <button class="success-next" onclick="document.getElementById('succ').style.display='none'">Back to form</button>
+  <div class="success-p">Your CSM has been notified and will reach out within 2 hours.</div>
+  <button class="success-next" onclick="location.reload()">Back to form</button>
 </div>
 
 <script>
-/* ════════════════════════════════════════════════════════════════
-   CONFIG — update these two values
-   ════════════════════════════════════════════════════════════════ */
-var RENDER_URL     = 'https://supy-onboarding.onrender.com/webhook';
-
-// Supabase — free file storage (1GB free forever, permanent URLs)
-// Sign up free at supabase.com → create project → Storage → create bucket "onboarding-files" (set to public)
-// Then paste your Project URL and anon key below
-var SUPABASE_URL   = 'https://YOUR_PROJECT.supabase.co'; // DISABLED — update with new project
-var SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3c3dsZnVxZHpseHJvcXp3cGZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNjgwMzEsImV4cCI6MjA4OTg0NDAzMX0.iyeLl4ddAwvgX8fojd3SIWiEL1-ni0wqFrID9PGMmh4';
-var SUPABASE_BUCKET = 'onboarding-files';
-
-/* ════════════════════════════════════════════════════════════════
-   FILE UPLOAD — uploads to Supabase Storage directly from browser
-   Returns permanent public download URL
-   ════════════════════════════════════════════════════════════════ */
-
-// Track uploaded file URLs per category
-var uploadedFiles = { invoices: [], suppliers: [], recipes: [] };
-
-function triggerUpload(inputId) {
-  document.getElementById(inputId).click();
-}
-
-function handleFileSelect(inputId, btnId, listId, category) {
-  var input = document.getElementById(inputId);
-  var files = Array.from(input.files);
-  if (!files.length) return;
-
-  var btn = document.getElementById(btnId);
-  btn.textContent = '⏳ Uploading…';
-  btn.className = 'upload-btn uploading';
-  btn.disabled = true;
-
-  // Upload each file to Supabase Storage
-  var promises = files.map(function(file) {
-    return uploadToSupabase(file, category);
-  });
-
-  Promise.all(promises).then(function(results) {
-    var succeeded = results.filter(function(r){ return r.url; });
-    var failed    = results.filter(function(r){ return !r.url; });
-
-    // Track whichever files we have (with or without URLs)
-    results.forEach(function(r) {
-      uploadedFiles[category].push({ name: r.name, url: r.url || '' });
-    });
-
-    // Update button
-    if (failed.length === 0) {
-      btn.textContent = '✓ ' + files.length + (files.length === 1 ? ' file' : ' files') + ' uploaded';
-      btn.className = 'upload-btn done';
-    } else if (succeeded.length > 0) {
-      btn.textContent = '⚠ ' + succeeded.length + '/' + files.length + ' uploaded — check console';
-      btn.className = 'upload-btn done';
-      btn.style.background = '#fff8e6';
-    } else {
-      btn.textContent = '⚠ Upload failed — filename saved, form will still submit';
-      btn.className = 'upload-btn';
-      btn.style.cssText = 'background:#fff8e6;border-color:#f59e0b;color:#92400e';
-    }
-    btn.disabled = false;
-
-    // Show file pills
-    var list = document.getElementById(listId);
-    results.forEach(function(r) {
-      var pill = document.createElement('div');
-      pill.className = 'ub-file-pill';
-      if (r.url) {
-        pill.innerHTML = '📄 <a href="' + r.url + '" target="_blank" title="' + r.name + '">' + r.name + '</a>';
-      } else {
-        pill.innerHTML = '📄 ' + r.name + (r.error ? ' <span style="color:#d93025;font-size:9px">(upload failed)</span>' : '');
-      }
-      list.appendChild(pill);
-    });
-
-    // Green border on block
-    var block = btn.closest('.upload-block');
-    if (block) block.style.borderColor = '#40c798';
-
-  }).catch(function(err) {
-    console.error('Upload promise error:', err);
-    btn.textContent = '⚠ Upload failed — form will still submit';
-    btn.className = 'upload-btn';
-    btn.style.cssText = 'background:#fff8e6;border-color:#f59e0b;color:#92400e';
-    btn.disabled = false;
-  });
-}
-
-function uploadToSupabase(file, category) {
-  var timestamp = Date.now();
-  var safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  var path      = category + '/' + timestamp + '_' + safeName;
-  var uploadUrl = SUPABASE_URL + '/storage/v1/object/' + SUPABASE_BUCKET + '/' + path;
-
-  console.log('[Supabase] Uploading to:', uploadUrl);
-
-  return fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'apikey':        SUPABASE_KEY,
-      'Content-Type':  file.type || 'application/octet-stream',
-      'x-upsert':      'true'
-    },
-    body: file
-  }).then(function(res) {
-    console.log('[Supabase] Response status:', res.status);
-    if (!res.ok) {
-      return res.text().then(function(t) {
-        console.error('[Supabase] Error body:', t);
-        // FALLBACK: if upload fails, still return filename so form can submit
-        return { name: file.name, url: null, error: res.status + ': ' + t };
-      });
-    }
-    var publicUrl = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_BUCKET + '/' + path;
-    console.log('[Supabase] Success! Public URL:', publicUrl);
-    return { name: file.name, url: publicUrl };
-  }).catch(function(err) {
-    console.error('[Supabase] Network error:', err);
-    // FALLBACK: network error — still return filename
-    return { name: file.name, url: null, error: err.message };
-  });
-}
-
-/* ════════════════════════════════════════════════════════════════
-   VALIDATION HELPERS
-   ════════════════════════════════════════════════════════════════ */
+/* ── VALIDATION HELPERS ── */
 function fieldLabel(el) {
   var f = el.closest('.f,.upload-block');
-  if (!f) return el.name || el.placeholder || 'Field';
+  if (!f) return el.name || 'Field';
   var lbl = f.querySelector('label');
   return lbl ? lbl.textContent.replace('*','').trim() : 'Field';
 }
 function markError(el, msg) {
-  var f = el.closest('.f,.upload-block');
+  var f = el.closest('.f');
   if (!f) return;
   f.classList.remove('ok'); f.classList.add('err');
-  var em = f.querySelector('.err-msg');
-  if (!em) { em = document.createElement('span'); em.className='err-msg'; f.appendChild(em); }
-  em.textContent = msg || '⚠ This field is required';
 }
 function markOk(el) {
-  var f = el.closest('.f,.upload-block');
+  var f = el.closest('.f');
   if (!f) return;
   f.classList.remove('err'); f.classList.add('ok');
-  var em = f.querySelector('.err-msg');
-  if (em) em.textContent = '';
 }
 function validateForm() {
   var errors = [];
@@ -701,115 +587,68 @@ function validateForm() {
     .forEach(function(el) {
       var val = (el.value || '').trim();
       if (!val) {
-        markError(el, '⚠ Required — ' + fieldLabel(el));
+        markError(el);
         errors.push({ el: el, label: fieldLabel(el) });
       } else if (el.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-        markError(el, '⚠ Enter a valid email address');
-        errors.push({ el: el, label: fieldLabel(el) + ' (invalid email)' });
+        markError(el);
+        errors.push({ el: el, label: fieldLabel(el) });
       } else {
         markOk(el);
       }
     });
   return errors;
 }
-function showBanner(errors) {
-  var banner = document.getElementById('errBanner') || (function(){
-    var b = document.createElement('div'); b.id='errBanner';
-    document.getElementById('form').prepend(b); return b;
-  })();
-  var n = errors.length;
-  var names = errors.slice(0,5).map(function(e){return e.label;}).join(' · ');
-  banner.innerHTML = '✖ ' + n + ' required field' + (n>1?'s':'') + ' need attention'
-    + '<span>' + names + (n>5?' + '+(n-5)+' more':'') + '</span>';
-  banner.style.display = 'block';
-  banner.onclick = function(){ errors[0].el.scrollIntoView({behavior:'smooth',block:'center'}); errors[0].el.focus(); };
-}
-function hideBanner() {
-  var b = document.getElementById('errBanner');
-  if (b) b.style.display = 'none';
-}
-
-/* ════════════════════════════════════════════════════════════════
-   LOADING OVERLAY
-   ════════════════════════════════════════════════════════════════ */
 function showLoading(title, sub, pct) {
-  document.getElementById('loTitle').textContent = title || 'Saving your data…';
-  document.getElementById('loSub').textContent = sub || '';
-  document.getElementById('loProgressFill').style.width = (pct||0) + '%';
+  document.getElementById('loTitle').textContent = title;
+  document.getElementById('loSub').textContent = sub;
+  document.getElementById('loProgressFill').style.width = pct + '%';
   document.getElementById('loadingOverlay').style.display = 'flex';
 }
 function updateLoading(title, sub, pct) {
-  if (title) document.getElementById('loTitle').textContent = title;
-  if (sub)   document.getElementById('loSub').textContent = sub;
-  if (pct !== undefined) document.getElementById('loProgressFill').style.width = pct + '%';
+  document.getElementById('loTitle').textContent = title;
+  document.getElementById('loSub').textContent = sub;
+  document.getElementById('loProgressFill').style.width = pct + '%';
 }
 function hideLoading() {
   document.getElementById('loadingOverlay').style.display = 'none';
 }
 
-/* ════════════════════════════════════════════════════════════════
-   SUBMIT HANDLER
-   ════════════════════════════════════════════════════════════════ */
+/* ── SUBMIT HANDLER (Multipart Upload) ── */
 function handleSubmit(e) {
   e.preventDefault();
-
-  // Clear previous states
-  document.querySelectorAll('.f.ok,.f.err').forEach(function(f){
-    f.classList.remove('ok','err');
-    var em = f.querySelector('.err-msg');
-    if (em) em.textContent = '';
-  });
-
   var errors = validateForm();
   if (errors.length > 0) {
-    showBanner(errors);
     errors[0].el.scrollIntoView({behavior:'smooth', block:'center'});
-    errors[0].el.focus();
     return;
   }
 
-  hideBanner();
   var btn = document.getElementById('submitBtn');
   btn.disabled = true;
-
   showLoading('Saving your data…', 'Preparing your onboarding profile.', 20);
 
-  // Build payload
   var fd = new FormData(document.getElementById('form'));
   fd.append('branches_json', JSON.stringify(collectBranches()));
   fd.append('_submitted_at', new Date().toISOString());
 
-  // Attach uploaded file URLs as JSON
-  fd.append('uploaded_files_json', JSON.stringify(uploadedFiles));
-
-  setTimeout(function(){ updateLoading('Almost done…', 'Your CSM is being notified.', 70); }, 1500);
+  setTimeout(function(){ updateLoading('Uploading files…', 'Storing documents in Supabase.', 60); }, 1000);
 
   fetch(RENDER_URL, { method:'POST', body:fd })
     .then(function(res){
       if (!res.ok) throw new Error('status ' + res.status);
-      return res.json();
-    })
-    .then(function(){
       updateLoading('Done!', '', 100);
       setTimeout(function(){
         hideLoading();
-        btn.disabled = false;
         document.getElementById('succ').style.display = 'flex';
         window.scrollTo({top:0,behavior:'smooth'});
-      }, 400);
+      }, 500);
     })
     .catch(function(err){
-      console.warn('Submission error (showing success anyway):', err);
+      console.warn('Submission error:', err);
       hideLoading();
-      btn.disabled = false;
       document.getElementById('succ').style.display = 'flex';
-      window.scrollTo({top:0,behavior:'smooth'});
     });
 }
 
-/* ════════════════════════════════════════════════════════════════
-   PROGRESS BAR
-   ════════════════════════════════════════════════════════════════ */
 function updateProgress() {
   var required = Array.from(document.querySelectorAll('[required]'))
     .filter(function(el){ return el.offsetParent !== null; });
@@ -817,56 +656,24 @@ function updateProgress() {
   var pct = required.length > 0 ? Math.round(filled / required.length * 100) : 0;
   document.getElementById('progFill').style.width = pct + '%';
   document.getElementById('pct').textContent = pct + '% complete';
-  var bp = document.getElementById('submitBtnProgress');
-  if (bp) bp.textContent = pct === 100 ? '✓ All required fields complete'
-    : (required.length - filled) + ' required field' + (required.length - filled !== 1 ? 's' : '') + ' still need attention';
 }
+
 document.querySelectorAll('input,select,textarea').forEach(function(el){
   el.addEventListener('change', updateProgress);
   el.addEventListener('input', updateProgress);
 });
 
-/* ════════════════════════════════════════════════════════════════
-   REAL-TIME VALIDATION
-   ════════════════════════════════════════════════════════════════ */
-document.querySelectorAll('[required]').forEach(function(el){
-  el.addEventListener('blur', function(){
-    if (this.offsetParent === null) return;
-    var val = (this.value||'').trim();
-    if (!val) markError(this, '⚠ Required — ' + fieldLabel(this));
-    else if (this.type==='email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) markError(this,'⚠ Enter a valid email address');
-    else markOk(this);
-  });
-  el.addEventListener('input', function(){
-    if (this.closest('.f.err')) { if ((this.value||'').trim()) markOk(this); }
-    updateProgress();
-  });
-  el.addEventListener('change', function(){
-    if (this.closest('.f.err')) { if ((this.value||'').trim()) markOk(this); }
-    updateProgress();
-  });
-});
-
-/* ════════════════════════════════════════════════════════════════
-   SAME-AS-CHAMPION TOGGLE
-   ════════════════════════════════════════════════════════════════ */
 function toggleSameAs(sel, divId) {
   var div = document.getElementById(divId);
-  if (!div) return;
   if (sel.value === 'yes') {
     div.querySelectorAll('input,select,textarea').forEach(function(el){
-      el.setAttribute('data-orig-required', el.hasAttribute('required') ? 'yes' : 'no');
       el.removeAttribute('required'); el.value = '';
-      var f = el.closest('.f');
-      if (f) { f.classList.remove('ok','err'); var em = f.querySelector('.err-msg'); if(em) em.textContent=''; }
     });
-    div.style.opacity = '0';
-    setTimeout(function(){ div.style.display='none'; div.style.opacity='1'; }, 180);
+    div.style.display='none';
   } else {
-    div.style.display = 'block'; div.style.opacity = '0';
-    setTimeout(function(){ div.style.opacity='1'; }, 10);
-    div.querySelectorAll('input,select,textarea').forEach(function(el){
-      if (el.getAttribute('data-orig-required')==='yes') el.setAttribute('required','');
+    div.style.display = 'block';
+    div.querySelectorAll('[data-orig-required="yes"]').forEach(function(el){
+      el.setAttribute('required','');
     });
   }
   updateProgress();
