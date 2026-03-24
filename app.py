@@ -3,7 +3,7 @@ import json
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 CORS(app)
@@ -16,8 +16,7 @@ REFRESH_TOKEN = os.environ.get("REFRESH_TOKEN", "na1-ddcd-e6ae-4cf6-82b3-439b1ef
 # ── Supabase Credentials ──────────────────────────────────────────
 SUPABASE_URL         = "https://zwswlfugdzlxroqzwpfv.supabase.co"
 SUPABASE_BUCKET      = "onboarding-files"
-# 🚨 PASTE YOUR SECRET SERVICE_ROLE KEY HERE (Find in Supabase > Settings > API)
-SUPABASE_SERVICE_KEY = "PASTE_YOUR_SECRET_SERVICE_ROLE_KEY_HERE" 
+SUPABASE_SERVICE_KEY = "sb_secret_MN4pUJDnwapwBkZsXyYiGw_IAtX-fsU" 
 
 def get_access_token():
     r = requests.post("https://api.hubapi.com/oauth/v1/token", data={
@@ -26,14 +25,15 @@ def get_access_token():
         "client_secret": CLIENT_SECRET,
         "refresh_token": REFRESH_TOKEN,
     })
+    if r.status_code != 200:
+        print(f"   [HubSpot Token Error]: {r.text}")
     return r.json().get("access_token")
 
 def upload_to_supabase(file_obj, category, email):
-    """Uploads file to Supabase using the Service Key (bypasses all browser security)"""
     if not file_obj or not file_obj.filename:
         return None
     
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     safe_name = "".join([c if c.isalnum() or c in "._-" else "_" for c in file_obj.filename])
     path = f"{category}/{timestamp}_{safe_name}"
     
@@ -51,7 +51,7 @@ def upload_to_supabase(file_obj, category, email):
     if r.status_code == 200:
         return f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{path}"
     else:
-        print(f"   Supabase error: {r.status_code} - {r.text}")
+        print(f"   [Supabase Upload Error]: {r.status_code} - {r.text}")
         return None
 
 def upsert_contact(token, email, firstname, lastname, phone, jobtitle):
@@ -64,19 +64,24 @@ def upsert_contact(token, email, firstname, lastname, phone, jobtitle):
     results = search_r.json().get("results", [])
 
     props = {"email": email, "firstname": firstname, "lastname": lastname, "jobtitle": jobtitle}
+    # HubSpot requires phone numbers to start with +
     if phone and phone.strip().startswith("+"):
         props["phone"] = phone.strip()
 
     if results:
         contact_id = results[0]["id"]
-        requests.patch(f"https://api.hubapi.com/crm/v3/objects/contacts/{contact_id}", headers=headers, json={"properties": props})
+        patch_r = requests.patch(f"https://api.hubapi.com/crm/v3/objects/contacts/{contact_id}", headers=headers, json={"properties": props})
+        if patch_r.status_code not in (200, 201):
+            print(f"   [HubSpot Update Error]: {patch_r.text}")
         return contact_id
     else:
         create_r = requests.post("https://api.hubapi.com/crm/v3/objects/contacts", headers=headers, json={"properties": props})
+        if create_r.status_code not in (200, 201):
+            print(f"   [HubSpot Create Error]: {create_r.text}")
         return create_r.json().get("id")
 
 def build_note(d, branches, file_links):
-    submitted = datetime.utcnow().strftime("%-d %b %Y at %H:%M UTC")
+    submitted = datetime.now(timezone.utc).strftime("%d %b %Y at %H:%M UTC")
 
     it_same = d.get("it_same_as_champion", "").lower()
     if it_same == "yes":
@@ -150,6 +155,7 @@ def webhook():
 
     token = get_access_token()
     if not token:
+        print("   ERROR: Could not get HubSpot access token.")
         return jsonify({"error": "HubSpot auth failed"}), 500
 
     contact_id = upsert_contact(
@@ -159,18 +165,23 @@ def webhook():
         d.get("champion_phone", ""), d.get("champion_title", "")
     )
 
+    # --- THE CRITICAL FIX IS HERE ---
     if not contact_id:
-        return jsonify({"error": "Contact upsert failed"}), 500
+        print("   ERROR: HubSpot refused to create or update the contact. Check the logs above for the specific error.")
+        return jsonify({"error": "Contact upsert failed"}), 400
 
     note_body = build_note(d, branches, file_links)
     
     # Create Note in HubSpot
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    requests.post("https://api.hubapi.com/engagements/v1/engagements", headers=headers, json={
-        "engagement": {"active": True, "type": "NOTE", "timestamp": int(datetime.utcnow().timestamp() * 1000)},
+    note_r = requests.post("https://api.hubapi.com/engagements/v1/engagements", headers=headers, json={
+        "engagement": {"active": True, "type": "NOTE", "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000)},
         "associations": {"contactIds": [int(contact_id)]},
         "metadata": {"body": note_body}
     })
+    
+    if note_r.status_code not in (200, 201):
+        print(f"   [HubSpot Note Error]: {note_r.text}")
 
     print(f"   Done — contact {contact_id} updated with note.")
     return jsonify({"status": "ok"}), 200
@@ -180,4 +191,5 @@ def index():
     return "Supy Onboarding Server is running.", 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
