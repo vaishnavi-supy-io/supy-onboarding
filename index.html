@@ -553,7 +553,7 @@ var RENDER_URL     = 'https://supy-onboarding.onrender.com/webhook';
 // Supabase — free file storage (1GB free forever, permanent URLs)
 // Sign up free at supabase.com → create project → Storage → create bucket "onboarding-files" (set to public)
 // Then paste your Project URL and anon key below
-var SUPABASE_URL   = 'https://zwswlfugdzlxroqzwpfv.supabase.co';
+var SUPABASE_URL   = 'https://YOUR_PROJECT.supabase.co'; // DISABLED — update with new project
 var SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp3c3dsZnVxZHpseHJvcXp3cGZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyNjgwMzEsImV4cCI6MjA4OTg0NDAzMX0.iyeLl4ddAwvgX8fojd3SIWiEL1-ni0wqFrID9PGMmh4';
 var SUPABASE_BUCKET = 'onboarding-files';
 
@@ -585,24 +585,40 @@ function handleFileSelect(inputId, btnId, listId, category) {
   });
 
   Promise.all(promises).then(function(results) {
+    var succeeded = results.filter(function(r){ return r.url; });
+    var failed    = results.filter(function(r){ return !r.url; });
+
+    // Track whichever files we have (with or without URLs)
     results.forEach(function(r) {
-      if (r.url) uploadedFiles[category].push({ name: r.name, url: r.url });
+      uploadedFiles[category].push({ name: r.name, url: r.url || '' });
     });
 
     // Update button
-    btn.textContent = '✓ ' + files.length + (files.length === 1 ? ' file' : ' files') + ' uploaded';
-    btn.className = 'upload-btn done';
+    if (failed.length === 0) {
+      btn.textContent = '✓ ' + files.length + (files.length === 1 ? ' file' : ' files') + ' uploaded';
+      btn.className = 'upload-btn done';
+    } else if (succeeded.length > 0) {
+      btn.textContent = '⚠ ' + succeeded.length + '/' + files.length + ' uploaded — check console';
+      btn.className = 'upload-btn done';
+      btn.style.background = '#fff8e6';
+    } else {
+      btn.textContent = '⚠ Upload failed — filename saved, form will still submit';
+      btn.className = 'upload-btn';
+      btn.style.cssText = 'background:#fff8e6;border-color:#f59e0b;color:#92400e';
+    }
     btn.disabled = false;
 
-    // Show file pills with download links
+    // Show file pills
     var list = document.getElementById(listId);
     results.forEach(function(r) {
+      var pill = document.createElement('div');
+      pill.className = 'ub-file-pill';
       if (r.url) {
-        var pill = document.createElement('div');
-        pill.className = 'ub-file-pill';
         pill.innerHTML = '📄 <a href="' + r.url + '" target="_blank" title="' + r.name + '">' + r.name + '</a>';
-        list.appendChild(pill);
+      } else {
+        pill.innerHTML = '📄 ' + r.name + (r.error ? ' <span style="color:#d93025;font-size:9px">(upload failed)</span>' : '');
       }
+      list.appendChild(pill);
     });
 
     // Green border on block
@@ -610,40 +626,47 @@ function handleFileSelect(inputId, btnId, listId, category) {
     if (block) block.style.borderColor = '#40c798';
 
   }).catch(function(err) {
-    console.error('Upload error:', err);
-    btn.textContent = '⚠ Upload failed — try link instead';
+    console.error('Upload promise error:', err);
+    btn.textContent = '⚠ Upload failed — form will still submit';
     btn.className = 'upload-btn';
-    btn.style.cssText = 'background:#fff8f8;border-color:#d93025;color:#d93025';
+    btn.style.cssText = 'background:#fff8e6;border-color:#f59e0b;color:#92400e';
     btn.disabled = false;
   });
 }
 
 function uploadToSupabase(file, category) {
-  // If Supabase not configured, fall back gracefully (just store filename)
-  if (SUPABASE_URL.includes('YOUR_PROJECT')) {
-    return Promise.resolve({ name: file.name, url: null });
-  }
-
   var timestamp = Date.now();
   var safeName  = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
   var path      = category + '/' + timestamp + '_' + safeName;
   var uploadUrl = SUPABASE_URL + '/storage/v1/object/' + SUPABASE_BUCKET + '/' + path;
 
+  console.log('[Supabase] Uploading to:', uploadUrl);
+
   return fetch(uploadUrl, {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'apikey': SUPABASE_KEY,
-      'Content-Type': file.type || 'application/octet-stream',
-      'x-upsert': 'true'
+      'apikey':        SUPABASE_KEY,
+      'Content-Type':  file.type || 'application/octet-stream',
+      'x-upsert':      'true'
     },
     body: file
   }).then(function(res) {
+    console.log('[Supabase] Response status:', res.status);
     if (!res.ok) {
-      return res.text().then(function(t){ throw new Error('Supabase ' + res.status + ': ' + t); });
+      return res.text().then(function(t) {
+        console.error('[Supabase] Error body:', t);
+        // FALLBACK: if upload fails, still return filename so form can submit
+        return { name: file.name, url: null, error: res.status + ': ' + t };
+      });
     }
     var publicUrl = SUPABASE_URL + '/storage/v1/object/public/' + SUPABASE_BUCKET + '/' + path;
+    console.log('[Supabase] Success! Public URL:', publicUrl);
     return { name: file.name, url: publicUrl };
+  }).catch(function(err) {
+    console.error('[Supabase] Network error:', err);
+    // FALLBACK: network error — still return filename
+    return { name: file.name, url: null, error: err.message };
   });
 }
 
