@@ -630,7 +630,7 @@ function handleSubmit(e) {
   fd.append('branches_json', JSON.stringify(collectBranches()));
   fd.append('_submitted_at', new Date().toISOString());
 
-  setTimeout(function(){ updateLoading('Uploading files…', 'Storing documents in Supabase.', 60); }, 1000);
+setTimeout(function(){ updateLoading('Uploading files…', 'Saving documents securely.', 60); }, 1000);
 
   fetch(RENDER_URL, { method:'POST', body:fd })
     .then(function(res){
