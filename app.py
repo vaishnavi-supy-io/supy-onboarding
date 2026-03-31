@@ -11,7 +11,7 @@ app = Flask(__name__)
 CORS(app)
 
 # ── CONFIGURATION ───────────────────────────────────────────────
-SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "YOUR_GOOGLE_SHEET_ID_HERE")  # <-- Set this
+SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID", "1ZmPjLk2qWuIzIL5gKltXFVqvyYpPu5kYuw7-KrU6d58")
 
 CLIENT_ID     = os.environ.get("CLIENT_ID", "d5f491d5-9206-422b-97b1-e037b4f06c45")
 CLIENT_SECRET = os.environ.get("CLIENT_SECRET", "ce5b4a8c-72ee-4ccc-91b6-25a40a7815c0")
