@@ -310,43 +310,48 @@ def build_note(d, branches, submitted_at):
 
 @app.route("/webhook", methods=["POST", "OPTIONS"])
 def webhook():
+    # Fix 1: Better CORS handling for the browser's "pre-check"
     if request.method == "OPTIONS":
         resp = app.make_default_options_response()
         resp.headers["Access-Control-Allow-Origin"] = "*"
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
         return resp
 
-    d = request.form.to_dict()
+    # Fix 2: Use request.values (replaces request.form for better reliability)
+    d = request.values.to_dict()
+    
+    # This helps you see what's happening in your PythonAnywhere 'server.log'
+    print(f"\n--- NEW SUBMISSION RECEIVED ---")
+    print(f"Fields received: {list(d.keys())}")
+
     email = (d.get("champion_email") or "").strip()
-
     if not email:
-        return jsonify({"error": "No champion email provided"}), 400
-
-    print(f"\n{'='*55}\nNEW SUBMISSION from: {email}\n{'='*55}")
-    print(f"   Form fields received: {list(d.keys())}")
+        print("ERROR: No email found in submission")
+        return jsonify({"error": "No email found"}), 400
 
     submitted_at = datetime.now(timezone.utc).strftime("%d %b %Y at %H:%M UTC")
 
-    # ── Parse Branch Data ──
+    # Fix 3: Robust Branch Parsing
     branches = []
+    raw_branches = d.get("branches_json")
+    if raw_branches:
+        try:
+            branches = json.loads(raw_branches)
+        except Exception as e:
+            print(f"Branch Parse Error: {e}")
+
+    # Fix 4: Try/Except wrap so one error doesn't crash the whole thing
     try:
-        raw_branches = d.get("branches_json", "[]")
-        branches = json.loads(raw_branches)
-        print(f"   Branches parsed: {len(branches)}")
+        log_to_sheets(d, branches, submitted_at)
     except Exception as e:
-        print(f"   [Branch Parse Error]: {e}")
+        print(f"Google Sheets Error: {e}")
 
-    # ── Log to Google Sheets (backup) ──
-    log_to_sheets(d, branches, submitted_at)
-
-    # ── HubSpot: Get Token ──
     token = get_hubspot_token()
     if not token:
-        print("   ERROR: Could not get HubSpot access token.")
-        return jsonify({"error": "HubSpot auth failed"}), 500
+        return jsonify({"error": "HubSpot Auth Failed"}), 500
 
-    # ── HubSpot: Upsert Contact ──
+    # HubSpot Contact Logic
     name_parts = (d.get("champion_name") or "Client").split()
     firstname = name_parts[0]
     lastname = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
@@ -358,16 +363,12 @@ def webhook():
     )
 
     if not contact_id:
-        print("   ERROR: HubSpot refused to create or update the contact.")
-        return jsonify({"error": "Contact upsert failed"}), 400
+        return jsonify({"error": "HubSpot Contact Logic Failed"}), 400
 
-    print(f"   Contact ID: {contact_id}")
-
-    # ── HubSpot: Build & Post Note ──
+    # HubSpot Note Logic
     note_body = build_note(d, branches, submitted_at)
-
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
+    
     note_payload = {
         "properties": {
             "hs_timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -375,39 +376,21 @@ def webhook():
         }
     }
 
-    print(f"   Posting note ({len(note_body)} chars)…")
-    note_r = requests.post(
-        "https://api.hubapi.com/crm/v3/objects/notes",
-        headers=headers,
-        json=note_payload
-    )
-
-    print(f"   Note response: {note_r.status_code} — {note_r.text[:300]}")
-
+    note_r = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers=headers, json=note_payload)
+    
     if note_r.status_code == 201:
         note_id = note_r.json().get("id")
-
-        # Associate note with contact
+        assoc_url = "https://api.hubapi.com/crm/v3/associations/Notes/Contacts/batch/create"
         assoc_payload = {
-            "inputs": [{
-                "from": {"id": note_id},
-                "to": {"id": contact_id},
-                "type": "note_to_contact"
-            }]
+            "inputs": [{"from": {"id": note_id}, "to": {"id": contact_id}, "type": "note_to_contact"}]
         }
-        assoc_r = requests.post(
-            "https://api.hubapi.com/crm/v3/associations/Notes/Contacts/batch/create",
-            headers=headers,
-            json=assoc_payload
-        )
-        print(f"   Association: {assoc_r.status_code}")
-        print(f"   ✅ Done — contact {contact_id} updated with note {note_id}.")
-    else:
-        print(f"   ❌ [HubSpot Note Error]: {note_r.status_code} — {note_r.text}")
-        # Still return 200 since we saved to Sheets
-        return jsonify({"status": "partial", "warning": "Note failed but data saved to Sheets"}), 200
-
-    return jsonify({"status": "ok", "contact_id": contact_id}), 200
+        requests.post(assoc_url, headers=headers, json=assoc_payload)
+        print("✅ Submission Successful!")
+        return jsonify({"status": "ok", "contact_id": contact_id}), 200
+    
+    # If Note fails but Sheet worked, we still call it a success
+    print(f"⚠️ HubSpot Note Failed: {note_r.text}")
+    return jsonify({"status": "partial", "contact_id": contact_id}), 200
 
 
 @app.route("/")
@@ -418,3 +401,4 @@ def index():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+    
