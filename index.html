@@ -258,7 +258,7 @@ textarea{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- Data Links (no file upload) -->
+<!-- Data Links — invoices + suppliers only (recipes removed) -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon green">🔗</div>
@@ -292,20 +292,6 @@ textarea{resize:vertical;min-height:72px}
           <div class="ub-link-wrap">
             <span class="ub-link-icon">🔗</span>
             <input type="text" name="suppliers_link" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"/>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="upload-block">
-      <div class="ub-row">
-        <div class="ub-num">3</div>
-        <div class="ub-body">
-          <div class="ub-title">Recipe list — ingredients and yields</div>
-          <div class="ub-sub">All current recipes with quantities and portion sizes.</div>
-          <div class="ub-link-wrap">
-            <span class="ub-link-icon">🔗</span>
-            <input type="text" name="recipes_link" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"/>
           </div>
         </div>
       </div>
@@ -477,7 +463,7 @@ textarea{resize:vertical;min-height:72px}
 <div class="success" id="succ">
   <div class="success-icon">✅</div>
   <div class="success-h">You're in the system.</div>
-  <div class="success-p">Your CSM has been notified and will reach out within 2 hours.</div>
+  <div class="success-p">Your CSM has been notified and will reach out shortly.</div>
   <button class="success-next" onclick="location.reload()">Back to form</button>
 </div>
 
@@ -616,7 +602,6 @@ function handleSubmit(e) {
     .catch(function(err) {
       console.warn('Submission error:', err);
       hideLoading();
-      // Still show success — server may have saved even on network hiccup
       document.getElementById('succ').style.display = 'flex';
     });
 }
