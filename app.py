@@ -131,9 +131,38 @@ def upsert_contact(token, d):
         create = requests.post("https://api.hubapi.com/crm/v3/objects/contacts", headers=headers, json={"properties": props})
         return create.json().get("id")
 
+# --- THIS IS THE CORRECTED, FULL HTML NOTE FOR HUBSPOT ---
 def build_note(d, branches, submitted_at):
-    # This keeps your nice formatting for the CRM note
-    return f"<h3>Supy Onboarding Details</h3><p><b>Submitted:</b> {submitted_at}</p><p><b>POS:</b> {d.get('pos_system')}</p><p><b>Accounting:</b> {d.get('accounting_software')}</p>"
+    it_same = (d.get("it_same_as_champion") or "").lower()
+    if it_same == "yes":
+        it_block = f"<b>Same as Internal Champion</b> — {d.get('champion_name','')} ({d.get('champion_email','')})"
+    else:
+        it_block = f"Name: {d.get('it_name','')}<br>Title: {d.get('it_title','')}<br>Email: {d.get('it_email','')}<br>Phone: {d.get('it_phone','')}<br>POS System: {d.get('pos_system','')}<br>Accounting SW: {d.get('accounting_software','')}"
+
+    branch_rows = ""
+    for i, b in enumerate(branches, 1):
+        hours = f"{b.get('open','')} – {b.get('close','')}".strip(" –")
+        branch_rows += f"<tr><td style='padding:5px 8px;border-bottom:1px solid #eee'>{i}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'><b>{b.get('name','')}</b></td><td style='padding:5px 8px;border-bottom:1px solid #eee'>{b.get('address','')}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>{b.get('cost_center','')}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>{hours}</td></tr>"
+    branch_section = f"<table style='border-collapse:collapse;width:100%;font-size:12px'><tr style='background:#321e57;color:#fff'><th style='padding:6px 8px'>#</th><th style='padding:6px 8px'>Branch Name</th><th style='padding:6px 8px'>Address</th><th style='padding:6px 8px'>Cost Center</th><th style='padding:6px 8px'>Hours</th></tr>{branch_rows}</table>" if branch_rows else "<i>No branch data provided.</i>"
+
+    def link_cell(label, link):
+        if link and link.strip(): return f"{label}: <a href='{link.strip()}' target='_blank'>{link.strip()}</a>"
+        return f"{label}: —"
+
+    files_block = link_cell("Invoices", d.get("invoices_link","")) + "<br>" + link_cell("Supplier Details", d.get("suppliers_link",""))
+
+    return (
+        f"<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3><p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: {submitted_at}</p>"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>COMPANY INFO</h4>Company Name: {d.get('company_name','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>Name: {d.get('champion_name','')}<br>Title: {d.get('champion_title','')}<br>Email: {d.get('champion_email','')}<br>Phone: {d.get('champion_phone','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FINANCE POC</h4>External Accounting Firm: {d.get('accounting_external','')}<br>Name: {d.get('finance_name','')}<br>Title: {d.get('finance_title','')}<br>Email: {d.get('finance_email','')}<br>Phone: {d.get('finance_phone','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>IT CONTACT</h4>{it_block}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>BRANCH CONFIGURATION</h4>{branch_section}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>OPERATIONS</h4>Order Method: {d.get('ordering_method','')}<br>PO Approver: {d.get('po_approver','')}<br>Ordering Structure: {d.get('ordering_structure','')}<br>Stock Counts: {d.get('stock_counts','')}<br>Stock Count Duration: {d.get('stock_count_duration','')}<br>Inventory System: {d.get('inventory_system','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FOOD COST</h4>Current Food Cost %: {d.get('food_cost_current','')}<br>Target Food Cost %: {d.get('food_cost_target','')}<br>COGS Method: {d.get('cogs_method','')}<br>Invoice Delivery: {d.get('invoice_delivery','')}<br>Finance Complications: {d.get('finance_complications','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>GOALS &amp; BLOCKERS</h4>Top Problem to Solve: {d.get('top_problem','')}<br>CSM Notes: {d.get('extra_notes','')}<br>Known Blockers: {d.get('blockers','')}<br>Target Go-Live: {d.get('golive_date','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FILE LINKS</h4>{files_block}"
+    )
 
 # ── THE MAIN WEBHOOK ──────────────────────────────────────────────
 @app.route("/webhook", methods=["POST", "OPTIONS"])
