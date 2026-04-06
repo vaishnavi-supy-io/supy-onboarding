@@ -38,7 +38,7 @@ def log_submission(email, company, submitted_at, status):
     except Exception as e:
         logger.error(f"Log write error: {e}")
 
-# ── 1. HUBSPOT (Now links Contact + Note to Deals and Companies!) ─
+# ── 1. HUBSPOT (The Ultimate Smart Linker) ───────────────────────
 def get_hubspot_token():
     r = requests.post("https://api.hubapi.com/oauth/v1/token", data={
         "grant_type": "refresh_token", "client_id": CLIENT_ID,
@@ -67,30 +67,39 @@ def link_everything(token, note_id, contact_id, company_name):
     # 1. Link the Note to the Contact
     requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Contacts/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": contact_id}, "type": "note_to_contact"}]})
     
+    # 2. SMART CHECK: If Contact is already linked to a Deal, put the note on that Deal!
+    try:
+        r = requests.get(f"https://api.hubapi.com/crm/v3/objects/contacts/{contact_id}/associations/deals", headers=headers)
+        if r.status_code == 200:
+            for d in r.json().get("results", []):
+                requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": d["id"]}, "type": "note_to_deal"}]})
+    except: pass
+
     if not company_name or company_name.lower() == "unknown": return
 
-    # 2. Search for matching Deal & Link BOTH Note and Contact!
+    # 3. Search Deal by Name (Just in case)
     try:
         deals = requests.post("https://api.hubapi.com/crm/v3/objects/deals/search", headers=headers, 
                               json={"filterGroups": [{"filters": [{"propertyName": "dealname", "operator": "CONTAINS_TOKEN", "value": company_name}]}]}).json().get("results", [])
-        if deals:
-            deal_id = deals[0]["id"]
-            # Link Note to Deal
-            requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": deal_id}, "type": "note_to_deal"}]})
-            # Link Contact to Deal
-            requests.post("https://api.hubapi.com/crm/v3/associations/Contacts/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": contact_id}, "to": {"id": deal_id}, "type": "contact_to_deal"}]})
+        for deal in deals:
+            requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": deal["id"]}, "type": "note_to_deal"}]})
+            requests.post("https://api.hubapi.com/crm/v3/associations/Contacts/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": contact_id}, "to": {"id": deal["id"]}, "type": "contact_to_deal"}]})
     except: pass
 
-    # 3. Search for matching Company & Link BOTH Note and Contact!
+    # 4. Search Company by Name -> Link everything to it, including its Deals
     try:
         comps = requests.post("https://api.hubapi.com/crm/v3/objects/companies/search", headers=headers, 
                               json={"filterGroups": [{"filters": [{"propertyName": "name", "operator": "CONTAINS_TOKEN", "value": company_name}]}]}).json().get("results", [])
         if comps:
             comp_id = comps[0]["id"]
-            # Link Note to Company
-            requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Companies/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": comp_id}, "type": "note_to_company"}]})
-            # Link Contact to Company
             requests.post("https://api.hubapi.com/crm/v3/associations/Contacts/Companies/batch/create", headers=headers, json={"inputs": [{"from": {"id": contact_id}, "to": {"id": comp_id}, "type": "contact_to_company"}]})
+            requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Companies/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": comp_id}, "type": "note_to_company"}]})
+            
+            # Put note on any Deals this Company owns
+            r_comp = requests.get(f"https://api.hubapi.com/crm/v3/objects/companies/{comp_id}/associations/deals", headers=headers)
+            if r_comp.status_code == 200:
+                for d in r_comp.json().get("results", []):
+                    requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": d["id"]}, "type": "note_to_deal"}]})
     except: pass
 
 def build_note(d, branches, submitted_at):
