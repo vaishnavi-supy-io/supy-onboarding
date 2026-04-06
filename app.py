@@ -9,13 +9,13 @@ from datetime import datetime, timezone
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ── CONFIGURATION ────────────────────────────────────────────────
+# ── CONFIGURATION (Values are pulled from the WSGI Vault) ────────
 CLIENT_ID           = os.environ.get("CLIENT_ID", "")
 CLIENT_SECRET       = os.environ.get("CLIENT_SECRET", "")
 REFRESH_TOKEN       = os.environ.get("REFRESH_TOKEN", "")
 
-# 🔴 PASTE YOUR HUBSPOT ACCOUNT ID HERE 🔴
-HUBSPOT_PORTAL_ID   = "REPLACE_ME_WITH_YOUR_HUB_ID"
+# 🔴 HUBSPOT ACCOUNT ID 🔴
+HUBSPOT_PORTAL_ID   = "9423176"
 
 GMAIL_CLIENT_ID     = os.environ.get("GMAIL_CLIENT_ID", "")
 GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET", "")
@@ -128,10 +128,12 @@ def build_note(d, branches, submitted_at):
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FILE LINKS</h4>{files_block}"
     )
 
-# ── 2. SLACK ─────────────────────────────────────────────────────
+# ── 2. SLACK (Upgraded with a green Button) ──────────────────────
 def send_slack_notification(d, branches, submitted_at, cid):
     if not SLACK_WEBHOOK_URL: return False
+    
     hs_link = f"https://app.hubspot.com/contacts/{HUBSPOT_PORTAL_ID}/record/0-1/{cid}" if cid else "https://app.hubspot.com/contacts/"
+    
     blocks = [
         {"type": "header", "text": {"type": "plain_text", "text": "🎉 New Onboarding Submission", "emoji": True}},
         {
@@ -145,7 +147,21 @@ def send_slack_notification(d, branches, submitted_at, cid):
                 {"type": "mrkdwn", "text": f"*Accounting:*\n{d.get('accounting_software', '-')}"}
             ]
         },
-        {"type": "section", "text": {"type": "mrkdwn", "text": f"🔗 *<{(hs_link)}|View Full Details in HubSpot>*"}}
+        {
+            "type": "actions",
+            "elements": [
+                {
+                    "type": "button",
+                    "text": {
+                        "type": "plain_text",
+                        "text": "View in HubSpot",
+                        "emoji": True
+                    },
+                    "style": "primary",
+                    "url": hs_link
+                }
+            ]
+        }
     ]
     r = requests.post(SLACK_WEBHOOK_URL, json={"blocks": blocks})
     return True if r.status_code == 200 else False
@@ -166,7 +182,7 @@ def send_email_notification(d, branches, submitted_at, cid):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🚀 New Onboarding: {company}"
     msg["From"], msg["To"] = EMAIL_FROM, ", ".join(EMAIL_RECIPIENTS)
-    html_body = f"<h3>New Onboarding Submission</h3><p><b>Company:</b> {company}<br><b>Submitted:</b> {submitted_at}</p><p>A new onboarding form has been successfully logged. All branch details, POS information, and accounting setups have been recorded.</p><a href='{hs_link}' style='display:inline-block;padding:10px 15px;background-color:#321e57;color:white;text-decoration:none;border-radius:5px;'>Open Contact in HubSpot</a>"
+    html_body = f"<h3>New Onboarding Submission</h3><p><b>Company:</b> {company}<br><b>Submitted:</b> {submitted_at}</p><p>A new onboarding form has been successfully logged. All branch details, POS information, and accounting setups have been recorded.</p><br><a href='{hs_link}' style='display:inline-block;padding:10px 15px;background-color:#321e57;color:white;text-decoration:none;border-radius:5px;'>Open Contact in HubSpot</a>"
     msg.attach(MIMEText(html_body, "html"))
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     r = requests.post("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json={"raw": raw})
@@ -200,7 +216,7 @@ def webhook():
 
     results = []
 
-    # 1. HubSpot FIRST
+    # 1. HubSpot FIRST (Creates Contact, Note, and Links Everything)
     token = get_hubspot_token()
     cid = None
     if token:
@@ -214,15 +230,15 @@ def webhook():
                 link_everything(token, nid, cid, company)
                 results.append("hubspot:ok")
 
-    # 2. Slack 
+    # 2. Slack (Now features the clickable button!)
     if send_slack_notification(d, branches, submitted_at, cid): results.append("slack:ok")
     else: results.append("slack:fail")
 
-    # 3. Gmail 
+    # 3. Gmail (Features the clickable button!)
     if send_email_notification(d, branches, submitted_at, cid): results.append("email:ok")
     else: results.append("email:fail")
 
-    # 4. Sheets
+    # 4. Sheets (Pings the Apps Script URL)
     if log_to_sheets(d, branches, submitted_at): results.append("sheets:ok")
     else: results.append("sheets:fail")
 
