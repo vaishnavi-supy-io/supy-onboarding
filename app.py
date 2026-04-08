@@ -104,7 +104,10 @@ def link_everything(token, note_id, contact_id, company_name):
 
 def build_note(d, branches, submitted_at):
     it_same = (d.get("it_same_as_champion") or "").lower()
-    it_block = f"<b>Same as Internal Champion</b> — {d.get('champion_name','')}" if it_same == "yes" else f"Name: {d.get('it_name','')}<br>Email: {d.get('it_email','')}<br>POS System: {d.get('pos_system','')}<br>Accounting SW: {d.get('accounting_software','')}"
+    
+    # 🟢 UPDATED: Extracts POS and Accounting safely and formats them outside the IT Name block
+    it_contact = f"<b>Same as Internal Champion</b> — {d.get('champion_name','')}" if it_same == "yes" else f"Name: {d.get('it_name','')}<br>Email: {d.get('it_email','')}"
+    it_block = f"{it_contact}<br><br><b>POS System:</b> {d.get('pos_system','')}<br><b>Accounting SW:</b> {d.get('accounting_software','')}"
     
     branch_rows = ""
     for i, b in enumerate(branches, 1):
@@ -120,7 +123,7 @@ def build_note(d, branches, submitted_at):
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>COMPANY INFO</h4>Company Name: {d.get('company_name','')}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>Name: {d.get('champion_name','')}<br>Title: {d.get('champion_title','')}<br>Email: {d.get('champion_email','')}<br>Phone: {d.get('champion_phone','')}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FINANCE POC</h4>External Accounting Firm: {d.get('accounting_external','')}<br>Name: {d.get('finance_name','')}<br>Title: {d.get('finance_title','')}<br>Email: {d.get('finance_email','')}<br>Phone: {d.get('finance_phone','')}"
-        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>IT CONTACT</h4>{it_block}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>IT & SYSTEMS</h4>{it_block}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>BRANCH CONFIGURATION</h4>{branch_section}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>OPERATIONS</h4>Order Method: {d.get('ordering_method','')}<br>PO Approver: {d.get('po_approver','')}<br>Ordering Structure: {d.get('ordering_structure','')}<br>Stock Counts: {d.get('stock_counts','')}<br>Stock Count Duration: {d.get('stock_count_duration','')}<br>Inventory System: {d.get('inventory_system','')}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FOOD COST</h4>Current Food Cost %: {d.get('food_cost_current','')}<br>Target Food Cost %: {d.get('food_cost_target','')}<br>COGS Method: {d.get('cogs_method','')}<br>Invoice Delivery: {d.get('invoice_delivery','')}<br>Finance Complications: {d.get('finance_complications','')}"
@@ -205,6 +208,11 @@ def webhook():
     if request.method == "OPTIONS": return jsonify({"status": "ok"}), 200
     
     d = request.values.to_dict()
+    
+    # 🟢 SERVER-SIDE BOUNCER: Strictly reject if POS or Accounting is missing
+    if not d.get("pos_system") or not d.get("accounting_software"):
+        return jsonify({"status": "error", "message": "POS System and Accounting Software are strictly required."}), 400
+
     email = d.get("champion_email", "Unknown").strip()
     company = d.get("company_name", "Unknown").strip()
     submitted_at = datetime.now(timezone.utc).strftime("%d %b %Y %H:%M UTC")
@@ -226,19 +234,18 @@ def webhook():
             note_r = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json={"properties": {"hs_note_body": note_body, "hs_timestamp": datetime.now(timezone.utc).isoformat()}})
             if note_r.status_code == 201:
                 nid = note_r.json().get("id")
-                # This function now connects EVERYTHING
                 link_everything(token, nid, cid, company)
                 results.append("hubspot:ok")
 
-    # 2. Slack (Now features the clickable button!)
+    # 2. Slack
     if send_slack_notification(d, branches, submitted_at, cid): results.append("slack:ok")
     else: results.append("slack:fail")
 
-    # 3. Gmail (Features the clickable button!)
+    # 3. Gmail
     if send_email_notification(d, branches, submitted_at, cid): results.append("email:ok")
     else: results.append("email:fail")
 
-    # 4. Sheets (Pings the Apps Script URL)
+    # 4. Sheets
     if log_to_sheets(d, branches, submitted_at): results.append("sheets:ok")
     else: results.append("sheets:fail")
 
