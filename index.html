@@ -126,7 +126,6 @@ textarea{resize:vertical;min-height:72px}
 <div class="wrap">
 <form id="form" onsubmit="handleSubmit(event)">
 
-<!-- Company Name -->
 <div class="card">
   <div class="card-body">
     <div class="f">
@@ -136,7 +135,6 @@ textarea{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- Contacts -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon navy">👥</div>
@@ -185,38 +183,41 @@ textarea{resize:vertical;min-height:72px}
       </div>
     </div>
 
-    <div class="sub-head" style="margin-top:18px">IT Contact — holds POS &amp; accounting system credentials</div>
+    <div class="sub-head" style="margin-top:18px">IT &amp; Systems Integration</div>
     <div class="contact-card cc-blue">
-      <div class="cc-hint cc-hint-blue">💻 Provides POS admin access and accounting software credentials. The #1 cause of delayed go-lives is no direct IT contact.</div>
+      <div class="cc-hint cc-hint-blue">💻 We need your POS and Accounting systems to configure your account. Please let us know who can provide API access.</div>
+      
       <div class="row r1">
-        <div class="f"><label>Is this the same person as the Internal Champion? <span class="r">*</span></label>
+        <div class="f"><label>Is the IT Contact the same person as the Internal Champion? <span class="r">*</span></label>
           <select required id="it_same" name="it_same_as_champion" onchange="toggleSameAs(this,'it-details')">
             <option value="">Select…</option>
-            <option value="no">No — different person</option>
+            <option value="no">No — different person handles IT</option>
             <option value="yes">Yes — same person</option>
           </select>
         </div>
       </div>
+      
       <div id="it-details">
         <div class="row r3">
-          <div class="f"><label>Full Name <span class="r">*</span></label><input type="text" name="it_name" placeholder="First and last name" required data-orig-required="yes"/></div>
+          <div class="f"><label>IT Contact Name <span class="r">*</span></label><input type="text" name="it_name" placeholder="First and last name" required data-orig-required="yes"/></div>
           <div class="f"><label>Job Title <span class="r">*</span></label><input type="text" name="it_title" placeholder="e.g. IT Manager" required data-orig-required="yes"/></div>
           <div class="f"><label>Phone / WhatsApp <span class="r">*</span></label><input type="tel" name="it_phone" placeholder="+971 50 000 0000" required data-orig-required="yes"/></div>
         </div>
         <div class="row r1">
           <div class="f"><label>Email Address <span class="r">*</span></label><input type="email" name="it_email" placeholder="it@company.com" required data-orig-required="yes"/></div>
         </div>
-        <div class="row r2" style="margin-top:10px">
-          <div class="f"><label>POS System <span class="r">*</span></label><input type="text" name="pos_system" placeholder="e.g. Foodics, Micros, Toast" required data-orig-required="yes"/><div class="hint">Your CSM will contact IT directly to configure the integration.</div></div>
-          <div class="f"><label>Accounting Software <span class="r">*</span></label><input type="text" name="accounting_software" placeholder="e.g. QuickBooks, Xero, SAP" required data-orig-required="yes"/><div class="hint">Your CSM will contact IT directly to configure the integration.</div></div>
-        </div>
       </div>
+
+      <div class="row r2" style="margin-top:10px; border-top: 1px solid #bdd9f5; padding-top: 14px;">
+        <div class="f"><label>POS System <span class="r">*</span></label><input type="text" name="pos_system" placeholder="e.g. Foodics, Micros, Toast" required/><div class="hint">Your CSM will contact you or IT directly to configure the integration.</div></div>
+        <div class="f"><label>Accounting Software <span class="r">*</span></label><input type="text" name="accounting_software" placeholder="e.g. QuickBooks, Xero, SAP" required/><div class="hint">Your CSM will contact you or IT directly to configure the integration.</div></div>
+      </div>
+
     </div>
 
   </div>
 </div>
 
-<!-- Branch Configuration -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon navy">🏪</div>
@@ -258,7 +259,6 @@ textarea{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- Data Links — invoices + suppliers only (recipes removed) -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon green">🔗</div>
@@ -300,7 +300,6 @@ textarea{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- Setup Assessment -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon amber">🎯</div>
@@ -423,7 +422,6 @@ textarea{resize:vertical;min-height:72px}
   </div>
 </div>
 
-<!-- Known Blockers -->
 <div class="card">
   <div class="card-header">
     <div class="ch-icon red">⚠️</div>
@@ -451,7 +449,6 @@ textarea{resize:vertical;min-height:72px}
 <div class="footer">supy.io</div>
 </div>
 
-<!-- Loading Overlay -->
 <div id="loadingOverlay">
   <div class="lo-spinner"></div>
   <div class="lo-title" id="loTitle">Saving your data…</div>
@@ -459,7 +456,6 @@ textarea{resize:vertical;min-height:72px}
   <div class="lo-progress"><div class="lo-progress-fill" id="loProgressFill"></div></div>
 </div>
 
-<!-- Success Screen -->
 <div class="success" id="succ">
   <div class="success-icon">✅</div>
   <div class="success-h">You're in the system.</div>
