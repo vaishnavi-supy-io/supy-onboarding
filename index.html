@@ -50,7 +50,6 @@ textarea{resize:vertical;min-height:72px}
 .hint{font-size:9.5px;color:#888;margin-top:2px;line-height:1.4}
 /* link-only upload block */
 .upload-block{border:1.5px solid #c8bee8;border-radius:8px;padding:14px 16px;margin-bottom:10px;background:#faf8fe}
-.upload-block:last-child{margin-bottom:0}
 .ub-row{display:flex;align-items:flex-start;gap:10px}
 .ub-num{width:22px;height:22px;border-radius:50%;background:#503390;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
 .ub-body{flex:1}
@@ -61,6 +60,17 @@ textarea{resize:vertical;min-height:72px}
 .ub-link{width:100%;padding:8px 10px;border:1.5px solid #e0d8f0;border-radius:6px;font-family:inherit;font-size:11.5px;color:#1A1A2E;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
 .ub-link:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.08)}
 .ub-link::placeholder{color:#c0b8d8;font-size:11px}
+
+/* Spreadsheet Previews */
+.sheet-preview { border: 1.5px solid #e0d8f0; border-radius: 6px; overflow-x: auto; background: #fff; box-shadow: 0 2px 8px rgba(80,51,144,.06); margin-top: 10px; margin-bottom: 24px; }
+.sheet-preview table { width: 100%; border-collapse: collapse; font-size: 10px; text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: nowrap; }
+.sheet-preview th { background: #f4f1fa; padding: 8px 12px; border-right: 1px solid #e0d8f0; border-bottom: 2px solid #e0d8f0; font-weight: 700; color: #321e57; }
+.sheet-preview td { padding: 8px 12px; border-right: 1px solid #f0ebf8; border-bottom: 1px solid #f0ebf8; color: #444; }
+.sheet-preview th:last-child, .sheet-preview td:last-child { border-right: none; }
+.sheet-preview tr:last-child td { border-bottom: none; }
+.sheet-preview .req-star { color: #DC2626; margin-left: 2px; font-family: sans-serif; }
+.sheet-preview .sample-row td { background: #fff8f8; color: #d93025; border-bottom-color: #fce8e8; border-right-color: #fce8e8; }
+
 /* branch table */
 .branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;width:100%}
 .branch-header,.branch-row{display:grid;grid-template-columns:2.4fr 1.8fr 1.3fr 1.6fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
@@ -297,7 +307,85 @@ textarea{resize:vertical;min-height:72px}
       </div>
     </div>
 
-  </div>
+    <div style="margin-top: 24px; padding: 20px; border: 1.5px solid #e0d8f0; border-radius: 8px; background-color: #faf8fe;">
+      <h3 style="margin-top: 0; color: #321e57; font-size: 15px; margin-bottom: 8px;">Need a format? Use our standard template</h3>
+      <p style="color: #666; font-size: 11.5px; line-height: 1.5; margin-bottom: 16px;">
+        To ensure a seamless upload process, please make sure your data matches our system format exactly. Download our template below and review the preview tables before uploading.
+      </p>
+      
+      <a href="https://docs.google.com/spreadsheets/d/1rp3Wt0rJHVyIPsyfTTBkj5YlVr7reb0JU0oxtbd2ygU/edit?usp=sharing" target="_blank" style="display: inline-block; margin-bottom: 24px; padding: 10px 16px; background: linear-gradient(135deg,#503390,#7b51bf); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 12px; box-shadow: 0 2px 4px rgba(80,51,144,.2);">
+        📥 Download Template
+      </a>
+
+      <div style="border-top: 1px solid #e0d8f0; padding-top: 20px;">
+        <h4 style="margin-bottom: 4px; color: #321e57; font-size: 13px;">1. Item Master Sheet</h4>
+        <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 0;">Define your inventory, categories, pricing, and tax rates.</p>
+        
+        <div class="sheet-preview">
+          <table>
+            <thead>
+              <tr>
+                <th>Item Code</th>
+                <th>Display Name<span class="req-star">*</span></th>
+                <th>Main Category<span class="req-star">*</span></th>
+                <th>Base Unit</th>
+                <th>Price (Ex Tax)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>RM-001</td>
+                <td>Tomato Roma</td>
+                <td>Vegetables</td>
+                <td>KG</td>
+                <td>12.50</td>
+              </tr>
+              <tr>
+                <td>MT-042</td>
+                <td>Chicken Breast</td>
+                <td>Meat & Poultry</td>
+                <td>KG</td>
+                <td>24.00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <h4 style="margin-bottom: 4px; color: #321e57; font-size: 13px;">2. Suppliers Tab</h4>
+        <p style="font-size: 11px; color: #888; margin-top: 0; margin-bottom: 0;">List vendor contacts and map them to active branches. (Delete the red sample row!)</p>
+
+        <div class="sheet-preview" style="margin-bottom: 0;">
+          <table>
+            <thead>
+              <tr>
+                <th>Supplier Name</th>
+                <th>Supplier Email ID 1</th>
+                <th>WhatsApp Number</th>
+                <th>Active Branches</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="sample-row">
+                <td>Sample Vendor (DELETE ME)</td>
+                <td>sample@email.com</td>
+                <td>+971 00 000 0000</td>
+                <td>All Branches</td>
+              </tr>
+              <tr>
+                <td>Fresh Farms LLC</td>
+                <td>orders@freshfarms.com</td>
+                <td>+971 50 123 4567</td>
+                <td>Dubai, Abu Dhabi</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+    </div>
+    </div>
 </div>
 
 <div class="card">
