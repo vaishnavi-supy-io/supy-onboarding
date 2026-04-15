@@ -29,7 +29,13 @@ SLACK_WEBHOOK_URL   = os.environ.get("SLACK_WEBHOOK_URL", "")
 GOOGLE_SCRIPT_URL   = os.environ.get("GOOGLE_SCRIPT_URL", "")
 
 GDRIVE_FOLDER_ID    = os.environ.get("GDRIVE_FOLDER_ID", "")
-GDRIVE_SA_JSON      = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "")
+# Load service account JSON from file (preferred) or env var fallback
+_SA_KEY_PATH = os.path.join(os.path.dirname(__file__), "gdrive_key.json")
+if os.path.exists(_SA_KEY_PATH):
+    with open(_SA_KEY_PATH) as _f:
+        GDRIVE_SA_JSON = _f.read()
+else:
+    GDRIVE_SA_JSON = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "")
 
 app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
 
