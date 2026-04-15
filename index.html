@@ -56,6 +56,13 @@ textarea{resize:vertical;min-height:72px}
 .ub-title{font-size:12px;font-weight:700;color:#1A1A2E;margin-bottom:2px}
 .ub-sub{font-size:10px;color:#888;line-height:1.4;margin-bottom:8px}
 .ub-link-wrap{display:flex;align-items:center;gap:8px}
+.ub-file-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ub-file-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;background:#ede9fb;border:1.5px solid #c0aee8;border-radius:6px;font-size:11px;font-weight:600;color:#503390;cursor:pointer;transition:background .15s}
+.ub-file-btn:hover{background:#e0d8f0}
+.ub-file-input{display:none}
+.ub-filename{font-size:10.5px;color:#321e57;font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ub-or{font-size:9px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.8px;margin:8px 0 6px;display:flex;align-items:center;gap:8px}
+.ub-or::before,.ub-or::after{content:'';flex:1;height:1px;background:#ede9fb}
 .ub-link-icon{font-size:14px;flex-shrink:0}
 .ub-link{width:100%;padding:8px 10px;border:1.5px solid #e0d8f0;border-radius:6px;font-family:inherit;font-size:11.5px;color:#1A1A2E;background:#fff;outline:none;transition:border-color .15s,box-shadow .15s}
 .ub-link:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.08)}
@@ -300,7 +307,14 @@ textarea{resize:vertical;min-height:72px}
         <div class="ub-body">
           <div class="ub-title">Last 3 months of invoices / product list</div>
           <div class="ub-sub">PDF, Excel, or photos — any format. Builds your supplier database automatically.</div>
-          <div class="ub-link-wrap">
+          <div class="ub-file-row">
+            <label class="ub-file-btn" for="invoices_file">📁 Choose file</label>
+            <input type="file" id="invoices_file" name="invoices_file" class="ub-file-input" accept=".pdf,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.zip"
+              onchange="onFileChosen(this,'invoices_chosen','invoices_link_wrap')"/>
+            <span id="invoices_chosen" class="ub-filename"></span>
+          </div>
+          <div class="ub-or">or paste a link</div>
+          <div class="ub-link-wrap" id="invoices_link_wrap">
             <span class="ub-link-icon">🔗</span>
             <input type="text" name="invoices_link" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"/>
           </div>
@@ -314,7 +328,14 @@ textarea{resize:vertical;min-height:72px}
         <div class="ub-body">
           <div class="ub-title">Supplier details</div>
           <div class="ub-sub">Name, email, contact, address. A spreadsheet is ideal.</div>
-          <div class="ub-link-wrap">
+          <div class="ub-file-row">
+            <label class="ub-file-btn" for="suppliers_file">📁 Choose file</label>
+            <input type="file" id="suppliers_file" name="suppliers_file" class="ub-file-input" accept=".pdf,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.zip"
+              onchange="onFileChosen(this,'suppliers_chosen','suppliers_link_wrap')"/>
+            <span id="suppliers_chosen" class="ub-filename"></span>
+          </div>
+          <div class="ub-or">or paste a link</div>
+          <div class="ub-link-wrap" id="suppliers_link_wrap">
             <span class="ub-link-icon">🔗</span>
             <input type="text" name="suppliers_link" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"/>
           </div>
@@ -568,6 +589,27 @@ textarea{resize:vertical;min-height:72px}
 
 <script>
 var RENDER_URL = 'https://vaishnavisupy.pythonanywhere.com/webhook';
+
+/* ── File upload feedback ── */
+function onFileChosen(input, chosenId, linkWrapId) {
+  var span = document.getElementById(chosenId);
+  var wrap = document.getElementById(linkWrapId);
+  if (input.files && input.files[0]) {
+    span.textContent = '\ud83d\udcc4 ' + input.files[0].name;
+    if (wrap) {
+      wrap.style.opacity = '.35';
+      wrap.style.pointerEvents = 'none';
+      wrap.querySelector('input').disabled = true;
+    }
+  } else {
+    span.textContent = '';
+    if (wrap) {
+      wrap.style.opacity = '';
+      wrap.style.pointerEvents = '';
+      wrap.querySelector('input').disabled = false;
+    }
+  }
+}
 
 /* ── Branch table ── */
 function addBranchRow() {

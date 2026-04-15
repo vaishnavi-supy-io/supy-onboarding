@@ -1,10 +1,14 @@
 import os
+import io
 import json
 import requests
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timezone
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
@@ -24,6 +28,11 @@ GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN", "")
 SLACK_WEBHOOK_URL   = os.environ.get("SLACK_WEBHOOK_URL", "")
 GOOGLE_SCRIPT_URL   = os.environ.get("GOOGLE_SCRIPT_URL", "")
 
+GDRIVE_FOLDER_ID    = os.environ.get("GDRIVE_FOLDER_ID", "")
+GDRIVE_SA_JSON      = os.environ.get("GDRIVE_SERVICE_ACCOUNT_JSON", "")
+
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB upload limit
+
 EMAIL_FROM       = "vaishnavi@supy.io"
 EMAIL_RECIPIENTS = ["vaishnavi@supy.io", "randhir@supy.io", "kenneth@supy.io"]
 
@@ -37,6 +46,60 @@ def log_submission(email, company, submitted_at, status):
             f.write(f"{submitted_at} | {email} | {company} | {status}\n")
     except Exception as e:
         logger.error(f"Log write error: {e}")
+
+# ── GOOGLE DRIVE (Service Account) ──────────────────────────────
+def _drive_service():
+    if not GDRIVE_SA_JSON or not GDRIVE_FOLDER_ID:
+        return None
+    try:
+        creds = Credentials.from_service_account_info(
+            json.loads(GDRIVE_SA_JSON),
+            scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return build("drive", "v3", credentials=creds)
+    except Exception as e:
+        logger.error(f"Drive service init error: {e}")
+        return None
+
+def _get_or_create_company_folder(service, company_name):
+    safe = (company_name.strip() or "Unknown")[:100]
+    q = (
+        f"name='{safe}' and mimeType='application/vnd.google-apps.folder'"
+        f" and '{GDRIVE_FOLDER_ID}' in parents and trashed=false"
+    )
+    results = service.files().list(q=q, fields="files(id)").execute().get("files", [])
+    if results:
+        return results[0]["id"]
+    folder = service.files().create(
+        body={"name": safe, "mimeType": "application/vnd.google-apps.folder", "parents": [GDRIVE_FOLDER_ID]},
+        fields="id"
+    ).execute()
+    return folder["id"]
+
+def upload_to_drive(file_storage, company_name, label):
+    """Upload a Flask FileStorage to Drive. Returns shareable URL or None."""
+    service = _drive_service()
+    if not service or not file_storage or not file_storage.filename:
+        return None
+    try:
+        folder_id = _get_or_create_company_folder(service, company_name)
+        safe_label = label.replace("/", "-")
+        file_metadata = {
+            "name": f"{safe_label} — {file_storage.filename}",
+            "parents": [folder_id]
+        }
+        mime = file_storage.mimetype or "application/octet-stream"
+        media = MediaIoBaseUpload(io.BytesIO(file_storage.read()), mimetype=mime, resumable=False)
+        f = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+        file_id = f.get("id")
+        service.permissions().create(
+            fileId=file_id,
+            body={"type": "anyone", "role": "reader"}
+        ).execute()
+        return f"https://drive.google.com/file/d/{file_id}/view"
+    except Exception as e:
+        logger.error(f"Drive upload error: {e}")
+        return None
 
 # ── 1. HUBSPOT (The Ultimate Smart Linker) ───────────────────────
 def get_hubspot_token():
@@ -221,6 +284,19 @@ def webhook():
     if d.get("branches_json"):
         try: branches = json.loads(d["branches_json"])
         except: pass
+
+    # ── Drive: upload any attached files, merge URLs into d ──────
+    _drive_uploads = {
+        "invoices_file":  ("invoices_link",  "Invoices"),
+        "suppliers_file": ("suppliers_link", "Supplier Details"),
+    }
+    for field, (link_key, label) in _drive_uploads.items():
+        f = request.files.get(field)
+        if f and f.filename:
+            url = upload_to_drive(f, company, label)
+            if url:
+                d[link_key] = url   # overwrite / set the link with the Drive URL
+                logger.info(f"Drive upload ok: {label} → {url}")
 
     results = []
 
