@@ -12,7 +12,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:#f4f1fa;color:#1A1A
 .hero-eyebrow{display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:20px;padding:4px 14px;font-size:9px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:rgba(255,255,255,.65);margin-bottom:12px}
 .hero h1{font-size:24px;font-weight:800;color:#fff;margin-bottom:7px;line-height:1.2}
 .hero h1 em{font-style:normal;color:#40c798}
-.wrap{max-width:700px;margin:0 auto;padding:24px 16px 48px}
+.wrap{max-width:900px;margin:0 auto;padding:24px 16px 48px}
 .progress-wrap{position:sticky;top:0;z-index:100;background:#fff;padding:12px 24px;box-shadow:0 2px 12px rgba(80,51,144,.13);border-bottom:1.5px solid #ede9fb}
 .prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .prog-label{font-size:10px;font-weight:600;color:#503390}
@@ -73,7 +73,7 @@ textarea{resize:vertical;min-height:72px}
 
 /* branch table */
 .branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;width:100%}
-.branch-header,.branch-row{display:grid;grid-template-columns:2.4fr 1.8fr 1.3fr 1.6fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
+.branch-header,.branch-row{display:grid;grid-template-columns:2.2fr 1.8fr 1.3fr 2.2fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
 .branch-header{background:#321e57}
 .bh-cell{display:flex;align-items:center;padding:10px;font-size:8px;font-weight:700;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.8px;border-right:1px solid rgba(255,255,255,.12)}
 .bh-cell:last-child{border-right:none}
@@ -84,10 +84,13 @@ textarea{resize:vertical;min-height:72px}
 .bc input::placeholder{color:#c8bedd;font-size:10.5px}
 .bc.bh-del{display:flex;align-items:center;justify-content:center;padding:0 6px}
 .bc-hours{padding:4px 6px}
-.hours-wrap{display:flex;align-items:center;gap:3px;width:100%}
+.hours-wrap{display:flex;align-items:center;gap:4px;width:100%;flex-wrap:nowrap}
 .hours-sep{font-size:11px;color:#aaa;flex-shrink:0}
-.time-input{border:1.5px solid #e0d8f0!important;border-radius:5px;padding:7px 3px!important;font-size:10.5px!important;background:#fff!important;cursor:pointer;flex:1;min-width:0;font-family:inherit;color:#1A1A2E;text-align:center;box-sizing:border-box}
-.time-input:focus{outline:none;border-color:#503390!important;box-shadow:0 0 0 3px rgba(80,51,144,.07)!important}
+.time-text{border:1.5px solid #e0d8f0;border-radius:5px;padding:7px 6px;font-size:11px;background:#fff;flex:1;min-width:32px;font-family:inherit;color:#1A1A2E;text-align:center;box-sizing:border-box;outline:none}
+.time-text:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.07)}
+.time-text::placeholder{color:#c8bedd;font-size:10px}
+.ampm-sel{border:1.5px solid #e0d8f0;border-radius:5px;padding:6px 2px;font-size:10.5px;background:#fff;font-family:inherit;color:#321e57;font-weight:600;cursor:pointer;outline:none;flex-shrink:0;appearance:none;text-align:center;width:44px}
+.ampm-sel:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.07)}
 .del-row{width:24px;height:24px;border-radius:4px;border:1px solid #fca5a5;background:#FEE2E2;color:#DC2626;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:1;padding:0;opacity:0;transition:opacity .15s;flex-shrink:0}
 .branch-row:hover .del-row{opacity:1}
 .add-branch-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:#503390;background:#ede9fb;border:1.5px solid #c0aee8;border-radius:6px;padding:7px 14px;cursor:pointer;transition:background .15s;margin-top:2px;font-family:inherit}
@@ -263,7 +266,7 @@ textarea{resize:vertical;min-height:72px}
           <div class="bc"><input type="text" placeholder="e.g. Bistro Bruce — Marina" required class="branch-req"/></div>
           <div class="bc"><input type="text" placeholder="e.g. Marina Walk, Dubai" required class="branch-req"/></div>
           <div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar" required class="branch-req"/></div>
-          <div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Open"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Close"/></div></div>
+          <div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>
           <div class="bc"><input type="text" placeholder="e.g. Ground floor"/></div>
           <div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>
         </div>
@@ -271,7 +274,7 @@ textarea{resize:vertical;min-height:72px}
           <div class="bc"><input type="text" placeholder="e.g. Bistro Bruce — DIFC" required class="branch-req"/></div>
           <div class="bc"><input type="text" placeholder="e.g. Gate Village, DIFC" required class="branch-req"/></div>
           <div class="bc"><input type="text" placeholder="e.g. Kitchen, Lounge" required class="branch-req"/></div>
-          <div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Open"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Close"/></div></div>
+          <div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>
           <div class="bc"><input type="text" placeholder="e.g. Level 2"/></div>
           <div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>
         </div>
@@ -575,11 +578,11 @@ function addBranchRow() {
     '<div class="bc"><input type="text" placeholder="e.g. Branch name" required class="branch-req"/></div>'
     +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
     +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
-    +'<div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Opening time"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Closing time"/></div></div>'
+    '<div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
     +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
     +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
   c.appendChild(row);
-  row.querySelectorAll('input').forEach(function(el){
+  row.querySelectorAll('input,select').forEach(function(el){
     el.addEventListener('input',  function(){ updateProgress(); saveToLocal(); });
     el.addEventListener('change', function(){ updateProgress(); saveToLocal(); });
   });
@@ -597,14 +600,15 @@ function deleteBranchRow(btn) {
 function collectBranches() {
   var branches = [];
   document.querySelectorAll('#branchRows .branch-row').forEach(function(row) {
-    var inputs = row.querySelectorAll('input[type=text],input[type=time]');
+    var texts = row.querySelectorAll('input[type=text]');
+    var ampm  = row.querySelectorAll('select.ampm-sel');
     var b = {
-      name:        inputs[0] ? inputs[0].value.trim() : '',
-      address:     inputs[1] ? inputs[1].value.trim() : '',
-      cost_center: inputs[2] ? inputs[2].value.trim() : '',
-      open:        inputs[3] ? inputs[3].value : '',
-      close:       inputs[4] ? inputs[4].value : '',
-      details:     inputs[5] ? inputs[5].value.trim() : ''
+      name:        texts[0] ? texts[0].value.trim() : '',
+      address:     texts[1] ? texts[1].value.trim() : '',
+      cost_center: texts[2] ? texts[2].value.trim() : '',
+      open:        (texts[3] ? texts[3].value.trim() : '') + ' ' + (ampm[0] ? ampm[0].value : ''),
+      close:       (texts[4] ? texts[4].value.trim() : '') + ' ' + (ampm[1] ? ampm[1].value : ''),
+      details:     texts[5] ? texts[5].value.trim() : ''
     };
     if (b.name) branches.push(b);
   });
@@ -660,17 +664,23 @@ function restoreFromLocal() {
         '<div class="bc"><input type="text" placeholder="e.g. Branch name" required class="branch-req"/></div>'
         +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
         +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
-        +'<div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Opening time"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Closing time"/></div></div>'
+        +'<div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
         +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
         +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
-      var inputs = row.querySelectorAll('input[type=text],input[type=time]');
-      if (inputs[0]) inputs[0].value = b.name || '';
-      if (inputs[1]) inputs[1].value = b.address || '';
-      if (inputs[2]) inputs[2].value = b.cost_center || '';
-      if (inputs[3]) inputs[3].value = b.open || '';
-      if (inputs[4]) inputs[4].value = b.close || '';
-      if (inputs[5]) inputs[5].value = b.details || '';
-      row.querySelectorAll('input').forEach(function(el){
+      var texts = row.querySelectorAll('input[type=text]');
+      var ampm  = row.querySelectorAll('select.ampm-sel');
+      // parse saved "9:00 AM" back into time + ampm
+      function splitTime(val) { var p = (val||'').trim().split(' '); return {t: p[0]||'', m: p[1]||'PM'}; }
+      var op = splitTime(b.open), cl = splitTime(b.close);
+      if (texts[0]) texts[0].value = b.name || '';
+      if (texts[1]) texts[1].value = b.address || '';
+      if (texts[2]) texts[2].value = b.cost_center || '';
+      if (texts[3]) texts[3].value = op.t;
+      if (ampm[0])  ampm[0].value  = op.m;
+      if (texts[4]) texts[4].value = cl.t;
+      if (ampm[1])  ampm[1].value  = cl.m;
+      if (texts[5]) texts[5].value = b.details || '';
+      row.querySelectorAll('input,select').forEach(function(el){
         el.addEventListener('input',  function(){ updateProgress(); saveToLocal(); });
         el.addEventListener('change', function(){ updateProgress(); saveToLocal(); });
       });
