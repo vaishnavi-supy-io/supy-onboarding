@@ -119,6 +119,13 @@ textarea{resize:vertical;min-height:72px}
 .lo-sub{font-size:11px;color:rgba(255,255,255,.55);max-width:300px;line-height:1.6}
 .lo-progress{margin-top:16px;width:220px;height:4px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden}
 .lo-progress-fill{height:100%;background:#40c798;border-radius:4px;transition:width .5s ease;width:0%}
+/* auto-save draft */
+#draftBadge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:600;color:#503390;background:#ede9fb;border:1px solid #c0aee8;border-radius:10px;padding:2px 9px;opacity:0;transition:opacity .4s;margin-left:8px}
+#saveDraftBtn{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#503390;background:#fff;border:1.5px solid #c0aee8;border-radius:6px;padding:5px 12px;cursor:pointer;font-family:inherit;transition:background .15s,border-color .15s;margin-top:8px}
+#saveDraftBtn:hover{background:#ede9fb;border-color:#503390}
+#saveDraftBtn:active{transform:scale(.97)}
+#draftBanner{display:none;background:#E8FAF0;border:1px solid #40c798;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#1a6045;align-items:center;justify-content:space-between;gap:8px}
+.draft-banner-close{background:none;border:none;cursor:pointer;font-size:16px;color:#40c798;padding:0;line-height:1;flex-shrink:0;font-weight:700}
 </style>
 </head>
 <body>
@@ -129,11 +136,16 @@ textarea{resize:vertical;min-height:72px}
 </div>
 
 <div class="progress-wrap">
-  <div class="prog-top"><span class="prog-label">Form progress</span><span class="prog-pct" id="pct">0% complete</span></div>
+  <div class="prog-top"><span class="prog-label">Form progress</span><span class="prog-pct" id="pct">0% complete</span><span id="draftBadge">💾 Draft saved</span></div>
   <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+  <button type="button" id="saveDraftBtn" onclick="saveDraftManual()">💾 Save progress</button>
 </div>
 
 <div class="wrap">
+<div id="draftBanner">
+  <span class="draft-banner-text"></span>
+  <button class="draft-banner-close" onclick="document.getElementById('draftBanner').style.display='none'" aria-label="Dismiss">✕</button>
+</div>
 <form id="form" onsubmit="handleSubmit(event)">
 
 <div class="card">
@@ -568,11 +580,12 @@ function addBranchRow() {
     +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
   c.appendChild(row);
   row.querySelectorAll('input').forEach(function(el){
-    el.addEventListener('input', updateProgress);
-    el.addEventListener('change', updateProgress);
+    el.addEventListener('input',  function(){ updateProgress(); saveToLocal(); });
+    el.addEventListener('change', function(){ updateProgress(); saveToLocal(); });
   });
   row.querySelector('input').focus();
   updateProgress();
+  saveToLocal();
 }
 
 function deleteBranchRow(btn) {
@@ -598,6 +611,105 @@ function collectBranches() {
   return branches;
 }
 
+/* ── Auto-save draft ── */
+var DRAFT_KEY = 'supy_onboarding_draft';
+var _draftBadgeTimer = null;
+
+function saveToLocal() {
+  var data = {};
+  document.querySelectorAll('[name]').forEach(function(el) {
+    data[el.name] = el.value;
+  });
+  data['_branches'] = collectBranches();
+  data['_saved_at'] = new Date().toISOString();
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch(e) {}
+  var badge = document.getElementById('draftBadge');
+  if (badge) {
+    badge.style.opacity = '1';
+    clearTimeout(_draftBadgeTimer);
+    _draftBadgeTimer = setTimeout(function(){ badge.style.opacity = '0'; }, 2200);
+  }
+}
+
+function restoreFromLocal() {
+  var raw;
+  try { raw = localStorage.getItem(DRAFT_KEY); } catch(e) { return; }
+  if (!raw) return;
+  var data;
+  try { data = JSON.parse(raw); } catch(e) { return; }
+
+  // Restore all named fields
+  Object.keys(data).forEach(function(key) {
+    if (key.charAt(0) === '_') return;
+    var el = document.querySelector('[name="' + key + '"]');
+    if (el) el.value = data[key];
+  });
+
+  // Re-trigger visibility toggles
+  var itSame = document.querySelector('[name="it_same_as_champion"]');
+  if (itSame) toggleSameAs(itSame, 'it-details');
+
+  // Rebuild branch rows if saved
+  if (Array.isArray(data['_branches']) && data['_branches'].length > 0) {
+    var container = document.getElementById('branchRows');
+    container.innerHTML = '';
+    data['_branches'].forEach(function(b) {
+      var row = document.createElement('div');
+      row.className = 'branch-row';
+      row.innerHTML =
+        '<div class="bc"><input type="text" placeholder="e.g. Branch name" required class="branch-req"/></div>'
+        +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
+        +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
+        +'<div class="bc bc-hours"><div class="hours-wrap"><input type="time" required class="branch-req time-input" title="Opening time"/><span class="hours-sep">–</span><input type="time" required class="branch-req time-input" title="Closing time"/></div></div>'
+        +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
+        +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
+      var inputs = row.querySelectorAll('input[type=text],input[type=time]');
+      if (inputs[0]) inputs[0].value = b.name || '';
+      if (inputs[1]) inputs[1].value = b.address || '';
+      if (inputs[2]) inputs[2].value = b.cost_center || '';
+      if (inputs[3]) inputs[3].value = b.open || '';
+      if (inputs[4]) inputs[4].value = b.close || '';
+      if (inputs[5]) inputs[5].value = b.details || '';
+      row.querySelectorAll('input').forEach(function(el){
+        el.addEventListener('input',  function(){ updateProgress(); saveToLocal(); });
+        el.addEventListener('change', function(){ updateProgress(); saveToLocal(); });
+      });
+      container.appendChild(row);
+    });
+  }
+
+  updateProgress();
+
+  // Show restore banner
+  var banner = document.getElementById('draftBanner');
+  if (banner) {
+    var savedAt = data['_saved_at'] ? new Date(data['_saved_at']).toLocaleString() : '';
+    banner.querySelector('.draft-banner-text').textContent =
+      '\uD83D\uDD04 Draft restored' + (savedAt ? ' \u2014 last saved ' + savedAt : '') + '. Pick up right where you left off.';
+    banner.style.display = 'flex';
+  }
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch(e) {}
+}
+
+function saveDraftManual() {
+  saveToLocal();
+  var btn = document.getElementById('saveDraftBtn');
+  if (!btn) return;
+  btn.textContent = '✅ Saved!';
+  btn.style.color = '#1a6045';
+  btn.style.borderColor = '#40c798';
+  btn.style.background = '#E8FAF0';
+  setTimeout(function() {
+    btn.textContent = '💾 Save progress';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    btn.style.background = '';
+  }, 2000);
+}
+
 /* ── Progress bar ── */
 function updateProgress() {
   var required = Array.from(document.querySelectorAll('[required]'))
@@ -609,8 +721,8 @@ function updateProgress() {
 }
 
 document.querySelectorAll('input,select,textarea').forEach(function(el){
-  el.addEventListener('change', updateProgress);
-  el.addEventListener('input', updateProgress);
+  el.addEventListener('change', function(){ updateProgress(); saveToLocal(); });
+  el.addEventListener('input',  function(){ updateProgress(); saveToLocal(); });
 });
 
 /* ── Validation ── */
@@ -678,6 +790,7 @@ function handleSubmit(e) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       updateLoading('Done!', 'Your data has been saved.', 100);
       setTimeout(function() {
+        clearDraft();
         hideLoading();
         document.getElementById('succ').style.display = 'flex';
         window.scrollTo({top: 0, behavior: 'smooth'});
@@ -706,6 +819,8 @@ function toggleSameAs(sel, divId) {
   }
   updateProgress();
 }
+
+restoreFromLocal();
 </script>
 </body>
 </html>
