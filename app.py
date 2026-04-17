@@ -74,7 +74,7 @@ def link_everything(token, note_id, contact_id, company_name):
         if r.status_code == 200:
             for d in r.json().get("results", []):
                 requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": d["id"]}, "type": "note_to_deal"}]})
-    except: pass
+    except Exception as e: logger.warning(f"link_everything: {e}")
 
     if not company_name or company_name.lower() == "unknown": return
 
@@ -85,7 +85,7 @@ def link_everything(token, note_id, contact_id, company_name):
         for deal in deals:
             requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": deal["id"]}, "type": "note_to_deal"}]})
             requests.post("https://api.hubapi.com/crm/v3/associations/Contacts/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": contact_id}, "to": {"id": deal["id"]}, "type": "contact_to_deal"}]})
-    except: pass
+    except Exception as e: logger.warning(f"link_everything: {e}")
 
     # 4. Search Company by Name -> Link everything to it, including its Deals
     try:
@@ -101,7 +101,7 @@ def link_everything(token, note_id, contact_id, company_name):
             if r_comp.status_code == 200:
                 for d in r_comp.json().get("results", []):
                     requests.post("https://api.hubapi.com/crm/v3/associations/Notes/Deals/batch/create", headers=headers, json={"inputs": [{"from": {"id": note_id}, "to": {"id": d["id"]}, "type": "note_to_deal"}]})
-    except: pass
+    except Exception as e: logger.warning(f"link_everything: {e}")
 
 def build_note(d, branches, submitted_at):
     it_same = (d.get("it_same_as_champion") or "").lower()
@@ -199,59 +199,88 @@ def log_to_sheets(d, branches, submitted_at):
     payload["submitted_at"] = submitted_at
     payload["branch_count"] = len(branches)
     try:
-        requests.post(GOOGLE_SCRIPT_URL, json=payload, timeout=10)
-        return True
-    except: return False
+        r = requests.post(GOOGLE_SCRIPT_URL, json=payload, timeout=10)
+        return r.status_code < 300
+    except Exception as e:
+        logger.warning(f"log_to_sheets: {e}")
+        return False
 
 # ── THE MAIN WEBHOOK ─────────────────────────────────────────────
 @app.route("/webhook", methods=["POST", "OPTIONS"])
 def webhook():
-    if request.method == "OPTIONS": return jsonify({"status": "ok"}), 200
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type"
+        }
     
-    d = request.values.to_dict()
-    
-    # 🟢 SERVER-SIDE BOUNCER: Strictly reject if POS or Accounting is missing
-    if not d.get("pos_system") or not d.get("accounting_software"):
-        return jsonify({"status": "error", "message": "POS System and Accounting Software are strictly required."}), 400
+    try:
+        d = request.values.to_dict()
 
-    email = d.get("champion_email", "Unknown").strip()
-    company = d.get("company_name", "Unknown").strip()
-    submitted_at = datetime.now(timezone.utc).strftime("%d %b %Y %H:%M UTC")
-    
-    branches = []
-    if d.get("branches_json"):
-        try: branches = json.loads(d["branches_json"])
-        except: pass
+        # 🟢 SERVER-SIDE BOUNCER: Strictly reject if POS or Accounting is missing
+        if not d.get("pos_system") or not d.get("accounting_software"):
+            return jsonify({"status": "error", "message": "POS System and Accounting Software are strictly required."}), 400
 
-    results = []
+        email = d.get("champion_email", "Unknown").strip()
+        company = d.get("company_name", "Unknown").strip()
+        submitted_at = datetime.now(timezone.utc).strftime("%d %b %Y %H:%M UTC")
 
-    # 1. HubSpot FIRST (Creates Contact, Note, and Links Everything)
-    token = get_hubspot_token()
-    cid = None
-    if token:
-        cid = upsert_contact(token, d)
-        if cid:
-            note_body = build_note(d, branches, submitted_at)
-            note_r = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json={"properties": {"hs_note_body": note_body, "hs_timestamp": datetime.now(timezone.utc).isoformat()}})
-            if note_r.status_code == 201:
-                nid = note_r.json().get("id")
-                link_everything(token, nid, cid, company)
-                results.append("hubspot:ok")
+        branches = []
+        if d.get("branches_json"):
+            try: branches = json.loads(d["branches_json"])
+            except: pass
 
-    # 2. Slack
-    if send_slack_notification(d, branches, submitted_at, cid): results.append("slack:ok")
-    else: results.append("slack:fail")
+        results = []
 
-    # 3. Gmail
-    if send_email_notification(d, branches, submitted_at, cid): results.append("email:ok")
-    else: results.append("email:fail")
+        # 1. HubSpot FIRST (Creates Contact, Note, and Links Everything)
+        token = get_hubspot_token()
+        cid = None
+        if token:
+            cid = upsert_contact(token, d)
+            if cid:
+                note_body = build_note(d, branches, submitted_at)
+                note_r = requests.post("https://api.hubapi.com/crm/v3/objects/notes", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json={"properties": {"hs_note_body": note_body, "hs_timestamp": datetime.now(timezone.utc).isoformat()}})
+                if note_r.status_code == 201:
+                    nid = note_r.json().get("id")
+                    link_everything(token, nid, cid, company)
+                    results.append("hubspot:ok")
+                else:
+                    results.append("hubspot:note-fail")
+            else:
+                results.append("hubspot:contact-fail")
 
-    # 4. Sheets
-    if log_to_sheets(d, branches, submitted_at): results.append("sheets:ok")
-    else: results.append("sheets:fail")
+        # 2. Slack
+        if send_slack_notification(d, branches, submitted_at, cid): results.append("slack:ok")
+        else: results.append("slack:fail")
 
-    log_submission(email, company, submitted_at, "|".join(results))
-    return jsonify({"status": "ok", "details": results}), 200
+        # 3. Gmail
+        if send_email_notification(d, branches, submitted_at, cid): results.append("email:ok")
+        else: results.append("email:fail")
+
+        # 4. Sheets
+        if log_to_sheets(d, branches, submitted_at): results.append("sheets:ok")
+        else: results.append("sheets:fail")
+
+        log_submission(email, company, submitted_at, "|".join(results))
+        return jsonify({"status": "ok", "details": results}), 200
+    except Exception as e:
+        import traceback
+        logger.error(f"webhook error: {traceback.format_exc()}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/debug", methods=["GET"])
+def debug():
+    return jsonify({
+        "CLIENT_ID": bool(CLIENT_ID),
+        "CLIENT_SECRET": bool(CLIENT_SECRET),
+        "REFRESH_TOKEN": bool(REFRESH_TOKEN),
+        "GMAIL_CLIENT_ID": bool(GMAIL_CLIENT_ID),
+        "GMAIL_CLIENT_SECRET": bool(GMAIL_CLIENT_SECRET),
+        "GMAIL_REFRESH_TOKEN": bool(GMAIL_REFRESH_TOKEN),
+        "SLACK_WEBHOOK_URL": bool(SLACK_WEBHOOK_URL),
+        "GOOGLE_SCRIPT_URL": bool(GOOGLE_SCRIPT_URL),
+    })
 
 @app.route("/logs", methods=["GET"])
 def view_logs():
