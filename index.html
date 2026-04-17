@@ -633,9 +633,9 @@ function autoSaveToSheets() {
     data['_draft']        = 'true';
     data['_autosave']     = 'true';
     data['_saved_at']     = new Date().toISOString();
-    var fd = new FormData();
-    Object.keys(data).forEach(function(k) { fd.append(k, data[k]); });
-    fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body: fd }).catch(function(){});
+    var params = new URLSearchParams();
+    Object.keys(data).forEach(function(k) { params.append(k, data[k]); });
+    fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body: params }).catch(function(){});
     var badge = document.getElementById('draftBadge');
     if (badge) {
       badge.textContent = '☁ Synced to Sheets';
