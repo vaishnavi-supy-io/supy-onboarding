@@ -74,7 +74,7 @@ textarea{resize:vertical;min-height:72px}
 
 /* branch table */
 .branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;width:100%}
-.branch-header,.branch-row{display:grid;grid-template-columns:2.2fr 1.8fr 1.3fr 2.2fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
+.branch-header,.branch-row{display:grid;grid-template-columns:2.2fr 1.8fr 1.3fr 3fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
 .branch-header{background:#321e57}
 .bh-cell{display:flex;align-items:center;padding:10px;font-size:8px;font-weight:700;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.8px;border-right:1px solid rgba(255,255,255,.12)}
 .bh-cell:last-child{border-right:none}
@@ -87,7 +87,7 @@ textarea{resize:vertical;min-height:72px}
 .bc-hours{padding:4px 6px}
 .hours-wrap{display:flex;align-items:center;gap:4px;width:100%;flex-wrap:nowrap}
 .hours-sep{font-size:11px;color:#aaa;flex-shrink:0}
-.time-text{border:1.5px solid #e0d8f0;border-radius:5px;padding:7px 6px;font-size:11px;background:#fff;flex:1;min-width:32px;font-family:inherit;color:#1A1A2E;text-align:center;box-sizing:border-box;outline:none}
+.time-text{border:1.5px solid #e0d8f0;border-radius:5px;padding:7px 6px;font-size:11px;background:#fff;flex:1;min-width:52px;font-family:inherit;color:#1A1A2E;text-align:center;box-sizing:border-box;outline:none}
 .time-text:focus{border-color:#503390;box-shadow:0 0 0 3px rgba(80,51,144,.07)}
 .time-text::placeholder{color:#c8bedd;font-size:10px}
 .ampm-sel{border:1.5px solid #e0d8f0;border-radius:5px;padding:6px 2px;font-size:10.5px;background:#fff;font-family:inherit;color:#321e57;font-weight:600;cursor:pointer;outline:none;flex-shrink:0;appearance:none;text-align:center;width:44px}
@@ -568,7 +568,9 @@ textarea{resize:vertical;min-height:72px}
 </div>
 
 <script>
-var RENDER_URL = 'https://vaishnavisupy.pythonanywhere.com/webhook';
+var RENDER_URL  = 'https://vaishnavisupy.pythonanywhere.com/webhook';
+// Set this to your Google Apps Script URL for auto-draft syncing to Sheets
+var SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbwhlhxGKrl2XOSM37D01LgmesHbcb7esRuhxKKDmDq0WRYRI2y8aC1fv5KszIWqDPut/exec';
 
 /* ── Branch table ── */
 function addBranchRow() {
@@ -619,6 +621,33 @@ function collectBranches() {
 /* ── Auto-save draft ── */
 var DRAFT_KEY = 'supy_onboarding_draft';
 var _draftBadgeTimer = null;
+var _sheetsTimer     = null;
+
+function autoSaveToSheets() {
+  if (!SHEETS_URL) return;
+  clearTimeout(_sheetsTimer);
+  _sheetsTimer = setTimeout(function() {
+    var data = {};
+    document.querySelectorAll('[name]').forEach(function(el) { data[el.name] = el.value; });
+    data['branches_json'] = JSON.stringify(collectBranches());
+    data['_draft']        = 'true';
+    data['_autosave']     = 'true';
+    data['_saved_at']     = new Date().toISOString();
+    var fd = new FormData();
+    Object.keys(data).forEach(function(k) { fd.append(k, data[k]); });
+    fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body: fd }).catch(function(){});
+    var badge = document.getElementById('draftBadge');
+    if (badge) {
+      badge.textContent = '☁ Synced to Sheets';
+      badge.style.opacity = '1';
+      clearTimeout(_draftBadgeTimer);
+      _draftBadgeTimer = setTimeout(function(){
+        badge.textContent = '💾 Draft saved';
+        badge.style.opacity = '0';
+      }, 2500);
+    }
+  }, 10000); // fires 10s after last keystroke
+}
 
 function saveToLocal() {
   var data = {};
@@ -628,6 +657,7 @@ function saveToLocal() {
   data['_branches'] = collectBranches();
   data['_saved_at'] = new Date().toISOString();
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch(e) {}
+  autoSaveToSheets();
   var badge = document.getElementById('draftBadge');
   if (badge) {
     badge.style.opacity = '1';
