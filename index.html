@@ -140,6 +140,12 @@ textarea{resize:vertical;min-height:72px}
 .file-done-chip{display:inline-flex;align-items:center;gap:5px;background:#E8FAF0;border:1px solid #40c798;border-radius:4px;padding:4px 10px;color:#1a6045;font-weight:600}
 .file-err-chip{display:inline-flex;align-items:center;gap:5px;background:#FEE2E2;border:1px solid #f87171;border-radius:4px;padding:4px 10px;color:#DC2626;font-weight:600}
 .file-loading-chip{display:inline-flex;align-items:center;gap:5px;color:#503390;font-weight:600}
+/* ── upload/link tab toggle ── */
+.ub-tabs{display:flex;gap:0;margin-bottom:10px;border:1.5px solid #e0d8f0;border-radius:6px;overflow:hidden;width:fit-content}
+.ub-tab{padding:6px 14px;font-size:10.5px;font-weight:700;cursor:pointer;border:none;background:#fff;color:#888;font-family:inherit;transition:background .15s,color .15s}
+.ub-tab.active{background:#503390;color:#fff}
+.ub-tab:first-child{border-right:1.5px solid #e0d8f0}
+.ub-panel{display:none}.ub-panel.active{display:block}
 </style>
 </head>
 <body>
@@ -310,14 +316,27 @@ textarea{resize:vertical;min-height:72px}
         <div class="ub-num">1</div>
         <div class="ub-body">
           <div class="ub-title">Last 3 months of invoices / product list</div>
-          <div class="ub-sub">PDF, Excel, CSV or photos — any format. Builds your supplier database automatically. Max 50 MB.</div>
+          <div class="ub-sub">PDF, Excel, CSV or photos — any format. Builds your supplier database automatically.</div>
           <input type="hidden" name="invoices_link" id="invoices_link_val"/>
-          <button type="button" class="file-pick-btn" id="invBtn" onclick="document.getElementById('invFile').click()">📎 Choose file</button>
-          <input type="file" id="invFile" class="file-input-hidden"
-                 accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
-                 onchange="uploadFile(this,'invoices_link_val','invBtn','invStatus','invProg')"/>
-          <div class="file-prog"><div class="file-prog-fill" id="invProg"></div></div>
-          <div class="file-status" id="invStatus"></div>
+          <div class="ub-tabs">
+            <button type="button" class="ub-tab active" onclick="switchUbTab('inv','file',this)">📎 Upload file</button>
+            <button type="button" class="ub-tab" onclick="switchUbTab('inv','link',this)">🔗 Paste link</button>
+          </div>
+          <div class="ub-panel active" id="inv-panel-file">
+            <button type="button" class="file-pick-btn" id="invBtn" onclick="document.getElementById('invFile').click()">📎 Choose file</button>
+            <input type="file" id="invFile" class="file-input-hidden"
+                   accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
+                   onchange="uploadFile(this,'invoices_link_val','invBtn','invStatus','invProg')"/>
+            <div class="file-prog"><div class="file-prog-fill" id="invProg"></div></div>
+            <div class="file-status" id="invStatus"></div>
+          </div>
+          <div class="ub-panel" id="inv-panel-link">
+            <div class="ub-link-wrap">
+              <span class="ub-link-icon">🔗</span>
+              <input type="text" id="inv-link-input" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"
+                     oninput="document.getElementById('invoices_link_val').value=this.value"/>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -327,14 +346,27 @@ textarea{resize:vertical;min-height:72px}
         <div class="ub-num">2</div>
         <div class="ub-body">
           <div class="ub-title">Supplier details</div>
-          <div class="ub-sub">Name, email, contact, address. A spreadsheet is ideal. Max 50 MB.</div>
+          <div class="ub-sub">Name, email, contact, address. A spreadsheet is ideal.</div>
           <input type="hidden" name="suppliers_link" id="suppliers_link_val"/>
-          <button type="button" class="file-pick-btn" id="supBtn" onclick="document.getElementById('supFile').click()">📋 Choose file</button>
-          <input type="file" id="supFile" class="file-input-hidden"
-                 accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
-                 onchange="uploadFile(this,'suppliers_link_val','supBtn','supStatus','supProg')"/>
-          <div class="file-prog"><div class="file-prog-fill" id="supProg"></div></div>
-          <div class="file-status" id="supStatus"></div>
+          <div class="ub-tabs">
+            <button type="button" class="ub-tab active" onclick="switchUbTab('sup','file',this)">📋 Upload file</button>
+            <button type="button" class="ub-tab" onclick="switchUbTab('sup','link',this)">🔗 Paste link</button>
+          </div>
+          <div class="ub-panel active" id="sup-panel-file">
+            <button type="button" class="file-pick-btn" id="supBtn" onclick="document.getElementById('supFile').click()">📋 Choose file</button>
+            <input type="file" id="supFile" class="file-input-hidden"
+                   accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
+                   onchange="uploadFile(this,'suppliers_link_val','supBtn','supStatus','supProg')"/>
+            <div class="file-prog"><div class="file-prog-fill" id="supProg"></div></div>
+            <div class="file-status" id="supStatus"></div>
+          </div>
+          <div class="ub-panel" id="sup-panel-link">
+            <div class="ub-link-wrap">
+              <span class="ub-link-icon">🔗</span>
+              <input type="text" id="sup-link-input" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"
+                     oninput="document.getElementById('suppliers_link_val').value=this.value"/>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -882,6 +914,25 @@ function toggleSameAs(sel, divId) {
 
 /* ── R2 File Upload ── */
 var WORKER_BASE = 'https://supy-onboarding.vaishnavi-5d1.workers.dev';
+
+function switchUbTab(prefix, tab, btn) {
+  // toggle tab buttons
+  var tabs = btn.parentElement.querySelectorAll('.ub-tab');
+  tabs.forEach(function(t){ t.classList.remove('active'); });
+  btn.classList.add('active');
+  // toggle panels
+  document.getElementById(prefix+'-panel-file').classList.remove('active');
+  document.getElementById(prefix+'-panel-link').classList.remove('active');
+  document.getElementById(prefix+'-panel-'+tab).classList.add('active');
+  // clear the hidden field when switching so stale value isn't submitted
+  var hiddenId = prefix === 'inv' ? 'invoices_link_val' : 'suppliers_link_val';
+  document.getElementById(hiddenId).value = '';
+  if (tab === 'link') {
+    var linkInput = document.getElementById(prefix+'-link-input');
+    linkInput.value = '';
+    linkInput.focus();
+  }
+}
 
 function uploadFile(input, hiddenId, btnId, statusId, progId) {
   var file = input.files[0];
