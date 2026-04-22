@@ -12,10 +12,16 @@
  * KV binding (optional — for /logs endpoint):
  *   LOGS  →  bound in wrangler.toml as [[kv_namespaces]]
  *
+ * R2 binding (required for file uploads):
+ *   UPLOADS  →  bound in wrangler.toml as [[r2_buckets]]
+ *   Create bucket once: npx wrangler r2 bucket create supy-onboarding-uploads
+ *
  * Routes:
- *   POST /webhook   — main form handler
- *   GET  /logs      — recent submission log
- *   GET  /          — health check
+ *   POST /webhook      — main form handler
+ *   POST /upload       — receive a file, store to R2, return URL
+ *   GET  /files/{key}  — serve a stored file to CSMs
+ *   GET  /logs         — recent submission log
+ *   GET  /             — health check
  */
 
 const HUBSPOT_PORTAL_ID = "9423176";
@@ -59,6 +65,14 @@ export default {
       return handleWebhook(request, env);
     }
 
+    if (url.pathname === "/upload" && request.method === "POST") {
+      return handleUpload(request, env);
+    }
+
+    if (url.pathname.startsWith("/files/") && request.method === "GET") {
+      return handleFileServe(request, env);
+    }
+
     if (url.pathname === "/logs" && request.method === "GET") {
       return handleLogs(env);
     }
@@ -73,6 +87,7 @@ export default {
         GMAIL_REFRESH_TOKEN: Boolean(env.GMAIL_REFRESH_TOKEN),
         SLACK_WEBHOOK_URL:   Boolean(env.SLACK_WEBHOOK_URL),
         GOOGLE_SCRIPT_URL:   Boolean(env.GOOGLE_SCRIPT_URL),
+        UPLOADS_R2:          Boolean(env.UPLOADS),
       });
     }
 
@@ -170,6 +185,77 @@ async function handleLogs(env) {
     status: 200,
     headers: { "Content-Type": "text/html" },
   }));
+}
+
+// ─────────────────────────────────────────────────────────────
+// File upload  (POST /upload)
+// Accepts multipart/form-data: file + company fields.
+// Stores to R2 and returns the Worker-served download URL.
+// ─────────────────────────────────────────────────────────────
+async function handleUpload(request, env) {
+  if (!env.UPLOADS) {
+    return json({ error: "R2 bucket not configured" }, 500);
+  }
+
+  let form;
+  try {
+    form = await request.formData();
+  } catch {
+    return json({ error: "Invalid multipart body" }, 400);
+  }
+
+  const file    = form.get("file");
+  const company = (form.get("company") || "unknown").trim();
+
+  if (!file || typeof file === "string") {
+    return json({ error: "No file provided" }, 400);
+  }
+
+  // Max 50 MB guard
+  if (file.size > 50 * 1024 * 1024) {
+    return json({ error: "File too large (max 50 MB)" }, 413);
+  }
+
+  const slug     = company.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "unknown";
+  const date     = new Date().toISOString().slice(0, 10);
+  const uid      = crypto.randomUUID().slice(0, 8);
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const key      = `submissions/${date}_${slug}/${uid}_${safeName}`;
+
+  await env.UPLOADS.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type || "application/octet-stream" },
+  });
+
+  const origin  = new URL(request.url).origin;
+  const fileUrl = `${origin}/files/${key}`;
+
+  return json({ url: fileUrl, key, name: file.name, size: file.size });
+}
+
+// ─────────────────────────────────────────────────────────────
+// File serve  (GET /files/{key})
+// Streams file out of R2 so CSMs can download via a direct link.
+// ─────────────────────────────────────────────────────────────
+async function handleFileServe(request, env) {
+  if (!env.UPLOADS) {
+    return new Response("Storage not configured", { status: 500 });
+  }
+
+  const key = new URL(request.url).pathname.replace(/^\/files\//, "");
+  if (!key) return new Response("Not found", { status: 404 });
+
+  const obj = await env.UPLOADS.get(key);
+  if (!obj) return new Response("File not found", { status: 404 });
+
+  const filename = key.split("/").pop();
+  const headers  = new Headers();
+  obj.writeHttpMetadata(headers);
+  headers.set("Content-Disposition", `attachment; filename="${filename}"`);
+  headers.set("Cache-Control", "private, max-age=86400");
+  // Allow HubSpot / Slack to iframe/embed the download link
+  for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
+
+  return new Response(obj.body, { headers });
 }
 
 async function appendLog(env, email, company, submittedAt, status) {
@@ -308,9 +394,9 @@ function buildNote(d, branches, submittedAt) {
 
   const linkCell = (label, link) =>
     link && link.trim()
-      ? `${label}: <a href='${link.trim()}' target='_blank'>${link.trim()}</a>`
-      : `${label}: —`;
-  const filesBlock = linkCell("Invoices", d.invoices_link) + "<br>" + linkCell("Supplier Details", d.suppliers_link);
+      ? `${label}: <a href='${link.trim()}' target='_blank' style='color:#503390;font-weight:600;text-decoration:none'>⬇ Download</a>`
+      : `${label}: <span style='color:#aaa'>—</span>`;
+  const filesBlock = linkCell("Invoices / Product List", d.invoices_link) + "<br>" + linkCell("Supplier Details", d.suppliers_link);
 
   return [
     `<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3><p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: ${submittedAt}</p>`,
@@ -352,6 +438,12 @@ async function sendSlack(env, d, branches, submittedAt, cid) {
       elements: [{ type: "button", text: { type: "plain_text", text: "View in HubSpot", emoji: true }, style: "primary", url: hsLink }],
     },
   ];
+
+  // Append file download buttons only when files were uploaded
+  const fileButtons = [];
+  if (d.invoices_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📎 Invoices", emoji: true }, url: d.invoices_link });
+  if (d.suppliers_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📋 Suppliers", emoji: true }, url: d.suppliers_link });
+  if (fileButtons.length > 0) blocks.push({ type: "actions", elements: fileButtons });
   const r = await fetch(env.SLACK_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

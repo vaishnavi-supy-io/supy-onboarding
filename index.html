@@ -130,6 +130,16 @@ textarea{resize:vertical;min-height:72px}
 #saveDraftBtn:active{transform:scale(.97)}
 #draftBanner{display:none;background:#E8FAF0;border:1px solid #40c798;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:#1a6045;align-items:center;justify-content:space-between;gap:8px}
 .draft-banner-close{background:none;border:none;cursor:pointer;font-size:16px;color:#40c798;padding:0;line-height:1;flex-shrink:0;font-weight:700}
+/* ── file upload widget ── */
+.file-pick-btn{display:inline-flex;align-items:center;gap:7px;padding:9px 16px;background:linear-gradient(135deg,#503390,#7b51bf);color:#fff;border:none;border-radius:6px;font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.file-pick-btn:hover{opacity:.88}.file-pick-btn:disabled{opacity:.5;cursor:not-allowed}
+.file-input-hidden{display:none}
+.file-prog{height:3px;background:#ede9fb;border-radius:3px;overflow:hidden;margin-top:8px;display:none}
+.file-prog-fill{height:100%;background:linear-gradient(90deg,#503390,#40c798);border-radius:3px;transition:width .3s}
+.file-status{margin-top:7px;font-size:10.5px;min-height:18px}
+.file-done-chip{display:inline-flex;align-items:center;gap:5px;background:#E8FAF0;border:1px solid #40c798;border-radius:4px;padding:4px 10px;color:#1a6045;font-weight:600}
+.file-err-chip{display:inline-flex;align-items:center;gap:5px;background:#FEE2E2;border:1px solid #f87171;border-radius:4px;padding:4px 10px;color:#DC2626;font-weight:600}
+.file-loading-chip{display:inline-flex;align-items:center;gap:5px;color:#503390;font-weight:600}
 </style>
 </head>
 <body>
@@ -287,10 +297,10 @@ textarea{resize:vertical;min-height:72px}
 
 <div class="card">
   <div class="card-header">
-    <div class="ch-icon green">🔗</div>
+    <div class="ch-icon green">📎</div>
     <div class="ch-text">
-      <div class="ch-title">File Links</div>
-      <div class="ch-sub">Paste a Google Drive, Dropbox, or any shareable link for each document. Make sure sharing is set to "Anyone with link".</div>
+      <div class="ch-title">File Uploads</div>
+      <div class="ch-sub">Upload files directly from your device — stored securely and shared with your CSM. PDF, Excel, CSV, images accepted.</div>
     </div>
   </div>
   <div class="card-body">
@@ -300,11 +310,14 @@ textarea{resize:vertical;min-height:72px}
         <div class="ub-num">1</div>
         <div class="ub-body">
           <div class="ub-title">Last 3 months of invoices / product list</div>
-          <div class="ub-sub">PDF, Excel, or photos — any format. Builds your supplier database automatically.</div>
-          <div class="ub-link-wrap" id="invoices_link_wrap">
-            <span class="ub-link-icon">🔗</span>
-            <input type="text" name="invoices_link" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"/>
-          </div>
+          <div class="ub-sub">PDF, Excel, CSV or photos — any format. Builds your supplier database automatically. Max 50 MB.</div>
+          <input type="hidden" name="invoices_link" id="invoices_link_val"/>
+          <button type="button" class="file-pick-btn" id="invBtn" onclick="document.getElementById('invFile').click()">📎 Choose file</button>
+          <input type="file" id="invFile" class="file-input-hidden"
+                 accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
+                 onchange="uploadFile(this,'invoices_link_val','invBtn','invStatus','invProg')"/>
+          <div class="file-prog"><div class="file-prog-fill" id="invProg"></div></div>
+          <div class="file-status" id="invStatus"></div>
         </div>
       </div>
     </div>
@@ -314,11 +327,14 @@ textarea{resize:vertical;min-height:72px}
         <div class="ub-num">2</div>
         <div class="ub-body">
           <div class="ub-title">Supplier details</div>
-          <div class="ub-sub">Name, email, contact, address. A spreadsheet is ideal.</div>
-          <div class="ub-link-wrap" id="suppliers_link_wrap">
-            <span class="ub-link-icon">🔗</span>
-            <input type="text" name="suppliers_link" class="ub-link" placeholder="https://drive.google.com/… or Dropbox link"/>
-          </div>
+          <div class="ub-sub">Name, email, contact, address. A spreadsheet is ideal. Max 50 MB.</div>
+          <input type="hidden" name="suppliers_link" id="suppliers_link_val"/>
+          <button type="button" class="file-pick-btn" id="supBtn" onclick="document.getElementById('supFile').click()">📋 Choose file</button>
+          <input type="file" id="supFile" class="file-input-hidden"
+                 accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
+                 onchange="uploadFile(this,'suppliers_link_val','supBtn','supStatus','supProg')"/>
+          <div class="file-prog"><div class="file-prog-fill" id="supProg"></div></div>
+          <div class="file-status" id="supStatus"></div>
         </div>
       </div>
     </div>
@@ -862,6 +878,62 @@ function toggleSameAs(sel, divId) {
     });
   }
   updateProgress();
+}
+
+/* ── R2 File Upload ── */
+var WORKER_BASE = 'https://supy-onboarding.vaishnavi-5d1.workers.dev';
+
+function uploadFile(input, hiddenId, btnId, statusId, progId) {
+  var file = input.files[0];
+  if (!file) return;
+
+  var company = (document.querySelector('[name="company_name"]') || {value:''}).value || 'unknown';
+  var btn     = document.getElementById(btnId);
+  var status  = document.getElementById(statusId);
+  var progWrap = document.getElementById(progId).parentElement;
+  var fill    = document.getElementById(progId);
+
+  btn.disabled      = true;
+  progWrap.style.display = 'block';
+  fill.style.width  = '5%';
+  status.innerHTML  = '<span class="file-loading-chip">⏳ Uploading ' + file.name + '…</span>';
+
+  var fd = new FormData();
+  fd.append('file', file);
+  fd.append('company', company);
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER_BASE + '/upload');
+
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) fill.style.width = Math.round((e.loaded / e.total) * 90) + '%';
+  };
+
+  xhr.onload = function() {
+    fill.style.width = '100%';
+    setTimeout(function(){ progWrap.style.display = 'none'; fill.style.width = '0%'; }, 700);
+    btn.disabled = false;
+    if (xhr.status === 200) {
+      var res = JSON.parse(xhr.responseText);
+      document.getElementById(hiddenId).value = res.url;
+      btn.innerHTML = '✅ Change file';
+      status.innerHTML = '<span class="file-done-chip">✅ ' + file.name + '</span>';
+    } else {
+      var msg = 'Upload failed';
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
+      btn.innerHTML = '📎 Retry';
+      status.innerHTML = '<span class="file-err-chip">❌ ' + msg + '</span>';
+    }
+  };
+
+  xhr.onerror = function() {
+    progWrap.style.display = 'none';
+    btn.disabled   = false;
+    btn.innerHTML  = '📎 Retry';
+    status.innerHTML = '<span class="file-err-chip">❌ Network error — please try again</span>';
+  };
+
+  xhr.send(fd);
 }
 
 restoreFromLocal();

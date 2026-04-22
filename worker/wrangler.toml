@@ -2,6 +2,13 @@ name = "supy-onboarding"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
+# ── R2 Bucket for file uploads ────────────────────────────────
+# Run once to create the bucket:
+#   npx wrangler r2 bucket create supy-onboarding-uploads
+[[r2_buckets]]
+binding     = "UPLOADS"
+bucket_name = "supy-onboarding-uploads"
+
 # ── KV Namespace for submission logs ──────────────────────────
 # After running `wrangler kv:namespace create LOGS`, paste the
 # returned id below.
