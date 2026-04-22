@@ -43,11 +43,14 @@ CSMs never need to leave HubSpot or Slack to access uploaded files.
 
 ## Setup
 
-### 1 — Create the R2 bucket (one-time)
-```bash
-cd worker
-npx wrangler r2 bucket create supy-onboarding-uploads
-```
+### 1 — Create a Supabase project (free, no card)
+1. Go to [supabase.com](https://supabase.com) → **New project**
+2. Once created, go to **Storage** → **New bucket**
+   - Bucket name: `onboarding-uploads`
+   - Toggle **Public bucket** → ON
+3. Go to **Settings → API** and copy:
+   - **Project URL** (e.g. `https://xxxx.supabase.co`)
+   - **anon / public** key
 
 ### 2 — Deploy the Worker
 ```bash
@@ -66,6 +69,8 @@ npx wrangler secret put GMAIL_CLIENT_SECRET
 npx wrangler secret put GMAIL_REFRESH_TOKEN
 npx wrangler secret put SLACK_WEBHOOK_URL
 npx wrangler secret put GOOGLE_SCRIPT_URL
+npx wrangler secret put SUPABASE_URL       # https://xxxx.supabase.co
+npx wrangler secret put SUPABASE_ANON_KEY  # anon/public key from Supabase → Settings → API
 ```
 
 ### 4 — Serve `index.html`
@@ -92,7 +97,7 @@ supy-onboarding/
 | **Slack** | Posts blocks message with HubSpot button + file download buttons |
 | **Gmail** | Sends summary email to the CSM team |
 | **Google Sheets** | Appends a row via Apps Script for lightweight tracking |
-| **Cloudflare R2** | Stores uploaded files; Worker serves them on `/files/{key}` |
+| **Supabase Storage** | Stores uploaded files; public URLs embedded in HubSpot note + Slack |
 
 ## Environment Variables
 
@@ -105,4 +110,5 @@ supy-onboarding/
 | `GMAIL_CLIENT_SECRET` | Gmail OAuth client secret |
 | `GMAIL_REFRESH_TOKEN` | Gmail OAuth refresh token |
 | `SLACK_WEBHOOK_URL` | Slack incoming webhook URL |
-| `GOOGLE_SCRIPT_URL` | Google Apps Script web app URL |
+| `SUPABASE_URL` | Supabase project URL (e.g. `https://xxxx.supabase.co`) |
+| `SUPABASE_ANON_KEY` | Supabase anon/public key |
