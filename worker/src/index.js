@@ -89,6 +89,7 @@ export default {
         GOOGLE_SCRIPT_URL:   Boolean(env.GOOGLE_SCRIPT_URL),
         SUPABASE_URL:        Boolean(env.SUPABASE_URL),
         SUPABASE_ANON_KEY:   Boolean(env.SUPABASE_ANON_KEY),
+        SLACK_TEST_WEBHOOK:  Boolean(env.SLACK_TEST_WEBHOOK_URL),
       });
     }
 
@@ -156,9 +157,15 @@ async function handleWebhook(request, env) {
     results.push("hubspot:auth-fail");
   }
 
-  // 2. Slack
+  // 2. Slack (main channel)
   const slackOk = await sendSlack(env, d, branches, submittedAt, cid);
   results.push(slackOk ? "slack:ok" : "slack:fail");
+
+  // 2b. Slack test channel — fires only when champion_email is vaishnavi@supy.io
+  if ((d.champion_email || "").toLowerCase().trim() === "vaishnavi@supy.io") {
+    const testOk = await sendSlackTestChannel(env, d, branches, submittedAt, cid);
+    results.push(testOk ? "slack-test:ok" : "slack-test:fail");
+  }
 
   // 3. Gmail
   const emailOk = await sendEmail(env, d, branches, submittedAt, cid);
@@ -432,6 +439,48 @@ async function sendSlack(env, d, branches, submittedAt, cid) {
   if (d.suppliers_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📋 Suppliers", emoji: true }, url: d.suppliers_link });
   if (fileButtons.length > 0) blocks.push({ type: "actions", elements: fileButtons });
   const r = await fetch(env.SLACK_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ blocks }),
+  });
+  return r.status === 200;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Slack — hubspot-test-channel
+// Fires only when champion_email === vaishnavi@supy.io
+// ─────────────────────────────────────────────────────────────
+async function sendSlackTestChannel(env, d, branches, submittedAt, cid) {
+  if (!env.SLACK_TEST_WEBHOOK_URL) return false;
+  const hsLink = cid
+    ? `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-1/${cid}`
+    : "https://app.hubspot.com/contacts/";
+
+  const blocks = [
+    { type: "header", text: { type: "plain_text", text: "🧪 Test Submission — vaishnavi@supy.io", emoji: true } },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Company:*\n${d.company_name || "Unknown"}` },
+        { type: "mrkdwn", text: `*Champion:*\n${d.champion_name || "-"} (${d.champion_email || "-"})` },
+        { type: "mrkdwn", text: `*Branches:*\n${branches.length} location(s)` },
+        { type: "mrkdwn", text: `*Target Go-Live:*\n${d.golive_date || "Not specified"}` },
+        { type: "mrkdwn", text: `*POS System:*\n${d.pos_system || "-"}` },
+        { type: "mrkdwn", text: `*Accounting:*\n${d.accounting_software || "-"}` },
+      ],
+    },
+    {
+      type: "actions",
+      elements: [{ type: "button", text: { type: "plain_text", text: "View in HubSpot", emoji: true }, style: "primary", url: hsLink }],
+    },
+  ];
+
+  const fileButtons = [];
+  if (d.invoices_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📎 Invoices", emoji: true }, url: d.invoices_link });
+  if (d.suppliers_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📋 Suppliers", emoji: true }, url: d.suppliers_link });
+  if (fileButtons.length > 0) blocks.push({ type: "actions", elements: fileButtons });
+
+  const r = await fetch(env.SLACK_TEST_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ blocks }),
