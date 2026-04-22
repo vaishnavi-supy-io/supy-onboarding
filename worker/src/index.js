@@ -14,12 +14,12 @@
  *
  * R2 binding (required for file uploads):
  *   UPLOADS  →  bound in wrangler.toml as [[r2_buckets]]
- *   Create bucket once: npx wrangler r2 bucket create supy-onboarding-uploads
+ *   Create bucket once: npx wrangler r2 bucket create supy-onboarding-files
  *
  * Supabase Storage secrets (for file uploads — no card required):
  *   SUPABASE_URL       — e.g. https://xxxx.supabase.co
  *   SUPABASE_ANON_KEY  — from Supabase → Settings → API
- *   Bucket name must be: onboarding-uploads (set to public in Supabase dashboard)
+ *   Bucket name must be: onboarding-files (set to public in Supabase dashboard)
  *
  * Routes:
  *   POST /webhook      — main form handler
@@ -192,8 +192,8 @@ async function handleLogs(env) {
 // File upload  (POST /upload)
 // Accepts multipart/form-data: file + company.
 // Stores to Supabase Storage and returns the public download URL.
-// Bucket "onboarding-uploads" must exist and be set to public
-// in Supabase Dashboard → Storage → onboarding-uploads → Policies.
+// Bucket "onboarding-files" must exist and be set to public
+// in Supabase Dashboard → Storage → onboarding-files → Policies.
 // ─────────────────────────────────────────────────────────────
 async function handleUpload(request, env) {
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
@@ -224,7 +224,7 @@ async function handleUpload(request, env) {
   const path     = `submissions/${date}_${slug}/${uid}_${safeName}`;
 
   const uploadRes = await fetch(
-    `${env.SUPABASE_URL}/storage/v1/object/onboarding-uploads/${path}`,
+    `${env.SUPABASE_URL}/storage/v1/object/onboarding-files/${path}`,
     {
       method:  "POST",
       headers: {
@@ -241,7 +241,7 @@ async function handleUpload(request, env) {
   }
 
   // Public URL — works once the bucket policy is set to public
-  const fileUrl = `${env.SUPABASE_URL}/storage/v1/object/public/onboarding-uploads/${path}`;
+  const fileUrl = `${env.SUPABASE_URL}/storage/v1/object/public/onboarding-files/${path}`;
   return json({ url: fileUrl, key: path, name: file.name, size: file.size });
 }
 

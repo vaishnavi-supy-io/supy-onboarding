@@ -9,7 +9,7 @@ User fills index.html
         │
         ├─ File selected ──→ POST /upload (CF Worker)
         │                         │
-        │                    R2 Bucket (supy-onboarding-uploads)
+        │                    R2 Bucket (supy-onboarding-files)
         │                    returns download URL
         │
         └─ Submit ──→ POST /webhook (CF Worker  or  Flask/PythonAnywhere)
@@ -46,7 +46,7 @@ CSMs never need to leave HubSpot or Slack to access uploaded files.
 ### 1 — Create a Supabase project (free, no card)
 1. Go to [supabase.com](https://supabase.com) → **New project**
 2. Once created, go to **Storage** → **New bucket**
-   - Bucket name: `onboarding-uploads`
+   - Bucket name: `onboarding-files`
    - Toggle **Public bucket** → ON
 3. Go to **Settings → API** and copy:
    - **Project URL** (e.g. `https://xxxx.supabase.co`)
