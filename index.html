@@ -326,6 +326,7 @@ textarea{resize:vertical;min-height:72px}
             <button type="button" class="file-pick-btn" id="invBtn" onclick="document.getElementById('invFile').click()">📎 Choose file</button>
             <input type="file" id="invFile" class="file-input-hidden"
                    accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
+                   multiple
                    onchange="uploadFile(this,'invoices_link_val','invBtn','invStatus','invProg')"/>
             <div class="file-prog"><div class="file-prog-fill" id="invProg"></div></div>
             <div class="file-status" id="invStatus"></div>
@@ -356,6 +357,7 @@ textarea{resize:vertical;min-height:72px}
             <button type="button" class="file-pick-btn" id="supBtn" onclick="document.getElementById('supFile').click()">📋 Choose file</button>
             <input type="file" id="supFile" class="file-input-hidden"
                    accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
+                   multiple
                    onchange="uploadFile(this,'suppliers_link_val','supBtn','supStatus','supProg')"/>
             <div class="file-prog"><div class="file-prog-fill" id="supProg"></div></div>
             <div class="file-status" id="supStatus"></div>
@@ -868,6 +870,12 @@ function handleSubmit(e) {
     return;
   }
 
+  // Block submit if any file is still uploading
+  if (window._uploadsInProgress > 0) {
+    alert('Please wait — files are still uploading.');
+    return;
+  }
+
   document.getElementById('submitBtn').disabled = true;
   showLoading('Saving your data…', 'Submitting your onboarding profile.', 30);
 
@@ -934,57 +942,90 @@ function switchUbTab(prefix, tab, btn) {
   }
 }
 
+window._uploadsInProgress = 0;
+
 function uploadFile(input, hiddenId, btnId, statusId, progId) {
-  var file = input.files[0];
-  if (!file) return;
+  var files = Array.from(input.files);
+  if (!files.length) return;
 
-  var company = (document.querySelector('[name="company_name"]') || {value:''}).value || 'unknown';
-  var btn     = document.getElementById(btnId);
-  var status  = document.getElementById(statusId);
+  var company  = (document.querySelector('[name="company_name"]') || {value:''}).value || 'unknown';
+  var btn      = document.getElementById(btnId);
+  var status   = document.getElementById(statusId);
   var progWrap = document.getElementById(progId).parentElement;
-  var fill    = document.getElementById(progId);
+  var fill     = document.getElementById(progId);
 
-  btn.disabled      = true;
+  btn.disabled = true;
   progWrap.style.display = 'block';
-  fill.style.width  = '5%';
-  status.innerHTML  = '<span class="file-loading-chip">⏳ Uploading ' + file.name + '…</span>';
+  fill.style.width = '5%';
+  status.innerHTML = '<span class="file-loading-chip">⏳ Uploading ' + files.length + ' file(s)…</span>';
 
-  var fd = new FormData();
-  fd.append('file', file);
-  fd.append('company', company);
+  window._uploadsInProgress += 1;
 
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', WORKER_BASE + '/upload');
+  var completed = 0;
+  var urls = new Array(files.length).fill(null);
+  var hasError = false;
 
-  xhr.upload.onprogress = function(e) {
-    if (e.lengthComputable) fill.style.width = Math.round((e.loaded / e.total) * 90) + '%';
-  };
+  files.forEach(function(file, idx) {
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('company', company);
 
-  xhr.onload = function() {
-    fill.style.width = '100%';
-    setTimeout(function(){ progWrap.style.display = 'none'; fill.style.width = '0%'; }, 700);
-    btn.disabled = false;
-    if (xhr.status === 200) {
-      var res = JSON.parse(xhr.responseText);
-      document.getElementById(hiddenId).value = res.url;
-      btn.innerHTML = '✅ Change file';
-      status.innerHTML = '<span class="file-done-chip">✅ ' + file.name + '</span>';
-    } else {
-      var msg = 'Upload failed';
-      try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
-      btn.innerHTML = '📎 Retry';
-      status.innerHTML = '<span class="file-err-chip">❌ ' + msg + '</span>';
-    }
-  };
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', WORKER_BASE + '/upload');
 
-  xhr.onerror = function() {
-    progWrap.style.display = 'none';
-    btn.disabled   = false;
-    btn.innerHTML  = '📎 Retry';
-    status.innerHTML = '<span class="file-err-chip">❌ Network error — please try again</span>';
-  };
+    xhr.upload.onprogress = function(e) {
+      if (e.lengthComputable) {
+        // rough aggregate progress
+        var pct = Math.round(((completed + (e.loaded / e.total)) / files.length) * 90);
+        fill.style.width = pct + '%';
+      }
+    };
 
-  xhr.send(fd);
+    xhr.onload = function() {
+      completed += 1;
+      if (xhr.status === 200) {
+        try { urls[idx] = JSON.parse(xhr.responseText).url; } catch(err) { hasError = true; }
+      } else {
+        hasError = true;
+      }
+
+      if (completed === files.length) {
+        fill.style.width = '100%';
+        setTimeout(function(){ progWrap.style.display = 'none'; fill.style.width = '0%'; }, 700);
+        btn.disabled = false;
+        window._uploadsInProgress = Math.max(0, window._uploadsInProgress - 1);
+
+        var goodUrls = urls.filter(Boolean);
+        if (goodUrls.length) {
+          document.getElementById(hiddenId).value = goodUrls.join(',');
+          btn.innerHTML = '✅ Change file(s)';
+          var chips = files.map(function(f, i) {
+            return urls[i]
+              ? '<span class="file-done-chip">✅ ' + f.name + '</span>'
+              : '<span class="file-err-chip">❌ ' + f.name + ' (failed)</span>';
+          }).join(' ');
+          status.innerHTML = chips;
+        } else {
+          btn.innerHTML = '📎 Retry';
+          status.innerHTML = '<span class="file-err-chip">❌ All uploads failed — please retry</span>';
+        }
+      }
+    };
+
+    xhr.onerror = function() {
+      completed += 1;
+      hasError = true;
+      if (completed === files.length) {
+        progWrap.style.display = 'none';
+        btn.disabled = false;
+        btn.innerHTML = '📎 Retry';
+        status.innerHTML = '<span class="file-err-chip">❌ Network error — please try again</span>';
+        window._uploadsInProgress = Math.max(0, window._uploadsInProgress - 1);
+      }
+    };
+
+    xhr.send(fd);
+  });
 }
 
 restoreFromLocal();

@@ -386,11 +386,15 @@ function buildNote(d, branches, submittedAt) {
     ? `<table style='border-collapse:collapse;width:100%;font-size:12px'><tr style='background:#321e57;color:#fff'><th style='padding:6px 8px'>#</th><th style='padding:6px 8px'>Branch Name</th><th style='padding:6px 8px'>Address</th><th style='padding:6px 8px'>Cost Center</th><th style='padding:6px 8px'>Hours</th></tr>${branchRows}</table>`
     : "<i>No branch data provided.</i>";
 
-  const linkCell = (label, link) =>
-    link && link.trim()
-      ? `${label}: <a href='${link.trim()}' target='_blank' style='color:#503390;font-weight:600;text-decoration:none'>⬇ Download</a>`
-      : `${label}: <span style='color:#aaa'>—</span>`;
-  const filesBlock = linkCell("Invoices / Product List", d.invoices_link) + "<br>" + linkCell("Supplier Details", d.suppliers_link);
+  const linkCells = (label, raw) => {
+    if (!raw || !raw.trim()) return `${label}: <span style='color:#aaa'>—</span>`;
+    const links = raw.split(",").map(u => u.trim()).filter(Boolean);
+    const anchors = links.map((u, i) =>
+      `<a href='${u}' target='_blank' style='color:#503390;font-weight:600;text-decoration:none'>⬇ File ${i + 1}</a>`
+    ).join(" &nbsp; ");
+    return `${label}: ${anchors}`;
+  };
+  const filesBlock = linkCells("Invoices / Product List", d.invoices_link) + "<br>" + linkCells("Supplier Details", d.suppliers_link);
 
   return [
     `<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3><p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: ${submittedAt}</p>`,
@@ -434,9 +438,18 @@ async function sendSlack(env, d, branches, submittedAt, cid) {
   ];
 
   // Append file download buttons only when files were uploaded
-  const fileButtons = [];
-  if (d.invoices_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📎 Invoices", emoji: true }, url: d.invoices_link });
-  if (d.suppliers_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📋 Suppliers", emoji: true }, url: d.suppliers_link });
+  const buildFileButtons = (raw, prefix) => {
+    if (!raw || !raw.trim()) return [];
+    return raw.split(",").map(u => u.trim()).filter(Boolean).slice(0, 5).map((u, i) => ({
+      type: "button",
+      text: { type: "plain_text", text: `${prefix} ${i + 1}`, emoji: true },
+      url: u,
+    }));
+  };
+  const fileButtons = [
+    ...buildFileButtons(d.invoices_link, "📎 Invoice"),
+    ...buildFileButtons(d.suppliers_link, "📋 Supplier"),
+  ].slice(0, 5);
   if (fileButtons.length > 0) blocks.push({ type: "actions", elements: fileButtons });
   const r = await fetch(env.SLACK_WEBHOOK_URL, {
     method: "POST",
@@ -475,9 +488,18 @@ async function sendSlackTestChannel(env, d, branches, submittedAt, cid) {
     },
   ];
 
-  const fileButtons = [];
-  if (d.invoices_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📎 Invoices", emoji: true }, url: d.invoices_link });
-  if (d.suppliers_link) fileButtons.push({ type: "button", text: { type: "plain_text", text: "📋 Suppliers", emoji: true }, url: d.suppliers_link });
+  const buildFileButtons = (raw, prefix) => {
+    if (!raw || !raw.trim()) return [];
+    return raw.split(",").map(u => u.trim()).filter(Boolean).slice(0, 5).map((u, i) => ({
+      type: "button",
+      text: { type: "plain_text", text: `${prefix} ${i + 1}`, emoji: true },
+      url: u,
+    }));
+  };
+  const fileButtons = [
+    ...buildFileButtons(d.invoices_link, "📎 Invoice"),
+    ...buildFileButtons(d.suppliers_link, "📋 Supplier"),
+  ].slice(0, 5);
   if (fileButtons.length > 0) blocks.push({ type: "actions", elements: fileButtons });
 
   const r = await fetch(env.SLACK_TEST_WEBHOOK_URL, {

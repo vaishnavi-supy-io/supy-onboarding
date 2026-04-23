@@ -1,3 +1,7 @@
 google_keys.json
 submissions.log
 __pycache__/
+node_modules/
+.wrangler/
+worker/node_modules/
+worker/.wrangler/
