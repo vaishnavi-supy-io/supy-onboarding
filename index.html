@@ -326,7 +326,6 @@ textarea{resize:vertical;min-height:72px}
             <button type="button" class="file-pick-btn" id="invBtn" onclick="document.getElementById('invFile').click()">📎 Choose file</button>
             <input type="file" id="invFile" class="file-input-hidden"
                    accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
-                   multiple
                    onchange="uploadFile(this,'invoices_link_val','invBtn','invStatus','invProg')"/>
             <div class="file-prog"><div class="file-prog-fill" id="invProg"></div></div>
             <div class="file-status" id="invStatus"></div>
@@ -357,7 +356,6 @@ textarea{resize:vertical;min-height:72px}
             <button type="button" class="file-pick-btn" id="supBtn" onclick="document.getElementById('supFile').click()">📋 Choose file</button>
             <input type="file" id="supFile" class="file-input-hidden"
                    accept=".pdf,.xlsx,.xls,.csv,.jpg,.jpeg,.png,.zip,.rar"
-                   multiple
                    onchange="uploadFile(this,'suppliers_link_val','supBtn','supStatus','supProg')"/>
             <div class="file-prog"><div class="file-prog-fill" id="supProg"></div></div>
             <div class="file-status" id="supStatus"></div>
@@ -937,67 +935,56 @@ function switchUbTab(prefix, tab, btn) {
 }
 
 function uploadFile(input, hiddenId, btnId, statusId, progId) {
-  var files = Array.from(input.files);
-  if (!files.length) return;
+  var file = input.files[0];
+  if (!file) return;
 
-  var company  = (document.querySelector('[name="company_name"]') || {value:''}).value || 'unknown';
-  var btn      = document.getElementById(btnId);
-  var status   = document.getElementById(statusId);
+  var company = (document.querySelector('[name="company_name"]') || {value:''}).value || 'unknown';
+  var btn     = document.getElementById(btnId);
+  var status  = document.getElementById(statusId);
   var progWrap = document.getElementById(progId).parentElement;
-  var fill     = document.getElementById(progId);
+  var fill    = document.getElementById(progId);
 
-  // Keep previously uploaded URLs so "Add more" stacks on top
-  var existingUrls = (document.getElementById(hiddenId).value || '').split(',').filter(Boolean);
-  var newUrls      = [];
-  var completed    = 0;
-
-  btn.disabled           = true;
+  btn.disabled      = true;
   progWrap.style.display = 'block';
-  fill.style.width       = '5%';
-  status.innerHTML       = '<span class="file-loading-chip">⏳ Uploading ' + files.length + ' file' + (files.length > 1 ? 's' : '') + '…</span>';
+  fill.style.width  = '5%';
+  status.innerHTML  = '<span class="file-loading-chip">⏳ Uploading ' + file.name + '…</span>';
 
-  function onFileDone(url, name, failed) {
-    if (url) newUrls.push(url);
-    completed++;
-    fill.style.width = Math.round((completed / files.length) * 90 + 5) + '%';
+  var fd = new FormData();
+  fd.append('file', file);
+  fd.append('company', company);
 
-    if (completed < files.length) return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', WORKER_BASE + '/upload');
 
-    // All done
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) fill.style.width = Math.round((e.loaded / e.total) * 90) + '%';
+  };
+
+  xhr.onload = function() {
     fill.style.width = '100%';
-    setTimeout(function () { progWrap.style.display = 'none'; fill.style.width = '0%'; }, 700);
-    btn.disabled  = false;
-    btn.innerHTML = '📎 Add more files';
+    setTimeout(function(){ progWrap.style.display = 'none'; fill.style.width = '0%'; }, 700);
+    btn.disabled = false;
+    if (xhr.status === 200) {
+      var res = JSON.parse(xhr.responseText);
+      document.getElementById(hiddenId).value = res.url;
+      btn.innerHTML = '✅ Change file';
+      status.innerHTML = '<span class="file-done-chip">✅ ' + file.name + '</span>';
+    } else {
+      var msg = 'Upload failed';
+      try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
+      btn.innerHTML = '📎 Retry';
+      status.innerHTML = '<span class="file-err-chip">❌ ' + msg + '</span>';
+    }
+  };
 
-    var allUrls = existingUrls.concat(newUrls);
-    document.getElementById(hiddenId).value = allUrls.join(',');
+  xhr.onerror = function() {
+    progWrap.style.display = 'none';
+    btn.disabled   = false;
+    btn.innerHTML  = '📎 Retry';
+    status.innerHTML = '<span class="file-err-chip">❌ Network error — please try again</span>';
+  };
 
-    var chips = allUrls.map(function (url) {
-      var raw  = url.split('/').pop();
-      var name = decodeURIComponent(raw.replace(/^[a-f0-9]{8}_/, ''));
-      return '<span class="file-done-chip" style="margin:2px 4px 2px 0;display:inline-flex">✅ ' + name + '</span>';
-    }).join('');
-    status.innerHTML = chips || '<span class="file-err-chip">❌ All uploads failed — try again</span>';
-  }
-
-  files.forEach(function (file) {
-    var fd = new FormData();
-    fd.append('file', file);
-    fd.append('company', company);
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', WORKER_BASE + '/upload');
-    xhr.onload = function () {
-      if (xhr.status === 200) {
-        var res = JSON.parse(xhr.responseText);
-        onFileDone(res.url, file.name, false);
-      } else {
-        onFileDone(null, file.name, true);
-      }
-    };
-    xhr.onerror = function () { onFileDone(null, file.name, true); };
-    xhr.send(fd);
-  });
+  xhr.send(fd);
 }
 
 restoreFromLocal();
