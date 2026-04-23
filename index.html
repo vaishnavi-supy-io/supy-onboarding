@@ -997,14 +997,20 @@ function uploadFile(input, hiddenId, btnId, statusId, progId) {
 
         var goodUrls = urls.filter(Boolean);
         if (goodUrls.length) {
-          document.getElementById(hiddenId).value = goodUrls.join(',');
-          btn.innerHTML = '✅ Change file(s)';
-          var chips = files.map(function(f, i) {
+          // APPEND to any previously uploaded files (user may pick files across multiple clicks)
+          var existing = document.getElementById(hiddenId).value;
+          var existingUrls = existing ? existing.split(',').filter(Boolean) : [];
+          var allUrls = existingUrls.concat(goodUrls);
+          document.getElementById(hiddenId).value = allUrls.join(',');
+          btn.innerHTML = '✅ Add more / done (' + allUrls.length + ' file' + (allUrls.length !== 1 ? 's' : '') + ')';
+          // show all accumulated chips plus new ones
+          var prevChips = status.innerHTML.replace(/<span[^>]*>⏳[^<]*<\/span>/g, '');
+          var newChips = files.map(function(f, i) {
             return urls[i]
               ? '<span class="file-done-chip">✅ ' + f.name + '</span>'
               : '<span class="file-err-chip">❌ ' + f.name + ' (failed)</span>';
           }).join(' ');
-          status.innerHTML = chips;
+          status.innerHTML = prevChips + ' ' + newChips;
         } else {
           btn.innerHTML = '📎 Retry';
           status.innerHTML = '<span class="file-err-chip">❌ All uploads failed — please retry</span>';
