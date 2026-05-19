@@ -135,7 +135,8 @@ async function handleWebhook(request, env) {
   const token = await getHubspotToken(env);
   let cid = null;
   if (token) {
-    cid = await upsertContact(token, d);
+    const { id: contactId, action } = await upsertContact(token, d);
+    cid = contactId;
     if (cid) {
       const noteBody = buildNote(d, branches, submittedAt);
       const noteRes = await fetch("https://api.hubapi.com/crm/v3/objects/notes", {
@@ -146,9 +147,11 @@ async function handleWebhook(request, env) {
       if (noteRes.status === 201) {
         const noteJson = await noteRes.json();
         await linkEverything(token, noteJson.id, cid, company);
-        results.push("hubspot:ok");
+        results.push(`hubspot:${action}:note-ok`);
       } else {
-        results.push("hubspot:note-fail");
+        const noteErr = await noteRes.text();
+        console.error("HubSpot note create failed", noteRes.status, noteErr);
+        results.push(`hubspot:${action}:note-fail`);
       }
     } else {
       results.push("hubspot:contact-fail");
@@ -292,24 +295,46 @@ async function upsertContact(token, d) {
     phone:     d.champion_phone,
   };
 
-  const search = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+  // Search for existing contact by email
+  const searchRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
     method: "POST", headers,
     body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }] }),
   });
-  const results = (await search.json()).results || [];
+  const searchJson = await searchRes.json();
+  const existing   = (searchJson.results || [])[0];
 
-  if (results.length > 0) {
-    const cid = results[0].id;
-    await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${cid}`, {
+  if (existing) {
+    // Contact found — update it
+    await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${existing.id}`, {
       method: "PATCH", headers, body: JSON.stringify({ properties: props }),
     });
-    return cid;
-  } else {
-    const create = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
-      method: "POST", headers, body: JSON.stringify({ properties: props }),
-    });
-    return (await create.json()).id || null;
+    return { id: existing.id, action: "updated" };
   }
+
+  // Contact not found — create a new one
+  const createRes  = await fetch("https://api.hubapi.com/crm/v3/objects/contacts", {
+    method: "POST", headers, body: JSON.stringify({ properties: props }),
+  });
+  const createJson = await createRes.json();
+
+  if (createRes.status === 201 && createJson.id) {
+    return { id: createJson.id, action: "created" };
+  }
+
+  // Edge case: HubSpot returned 409 (duplicate detected on their side) — re-search to get the id
+  if (createRes.status === 409) {
+    const retryRes  = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+      method: "POST", headers,
+      body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }] }),
+    });
+    const retryJson = await retryRes.json();
+    const found     = (retryJson.results || [])[0];
+    if (found) return { id: found.id, action: "updated" };
+  }
+
+  // Log the error detail so it surfaces in Cloudflare logs
+  console.error("HubSpot contact create failed", createRes.status, JSON.stringify(createJson));
+  return { id: null, action: "failed" };
 }
 
 async function linkEverything(token, noteId, contactId, companyName) {
