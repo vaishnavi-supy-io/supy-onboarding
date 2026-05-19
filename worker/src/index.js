@@ -288,12 +288,14 @@ async function getHubspotToken(env) {
 async function upsertContact(token, d) {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   const email   = d.champion_email;
-  const props   = {
+  const props = {
     email:     email,
     firstname: d.champion_name,
     jobtitle:  d.champion_title,
-    phone:     d.champion_phone,
   };
+  // Only include phone if it looks valid (must start with + and country code)
+  const rawPhone = (d.champion_phone || "").trim();
+  if (rawPhone.startsWith("+")) props.phone = rawPhone;
 
   // Search for existing contact by email
   const searchRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
