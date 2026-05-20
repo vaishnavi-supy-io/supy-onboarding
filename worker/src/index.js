@@ -12,14 +12,10 @@
  * KV binding (optional — for /logs endpoint):
  *   LOGS  →  bound in wrangler.toml as [[kv_namespaces]]
  *
- * R2 binding (required for file uploads):
- *   UPLOADS  →  bound in wrangler.toml as [[r2_buckets]]
- *   Create bucket once: npx wrangler r2 bucket create supy-onboarding-files
- *
- * Supabase Storage secrets (for file uploads — no card required):
- *   SUPABASE_URL       — e.g. https://xxxx.supabase.co
- *   SUPABASE_ANON_KEY  — from Supabase → Settings → API
- *   Bucket name must be: onboarding-files (set to public in Supabase dashboard)
+ * File uploads:
+ *   Files are uploaded to HubSpot File Manager (Files v3 API).
+ *   No extra secrets needed — uses the same HubSpot OAuth credentials.
+ *   Files are stored under supy-onboarding/{date}_{company}/ and are publicly accessible.
  *
  * Routes:
  *   POST /webhook      — main form handler
@@ -201,15 +197,10 @@ async function handleLogs(env) {
 // ─────────────────────────────────────────────────────────────
 // File upload  (POST /upload)
 // Accepts multipart/form-data: file + company.
-// Stores to Supabase Storage and returns the public download URL.
-// Bucket "onboarding-files" must exist and be set to public
-// in Supabase Dashboard → Storage → onboarding-files → Policies.
+// Stores to HubSpot File Manager and returns the public CDN URL.
+// Uses the same HubSpot OAuth credentials already configured.
 // ─────────────────────────────────────────────────────────────
 async function handleUpload(request, env) {
-  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
-    return json({ error: "Supabase not configured — set SUPABASE_URL and SUPABASE_ANON_KEY secrets" }, 500);
-  }
-
   let form;
   try {
     form = await request.formData();
@@ -227,32 +218,40 @@ async function handleUpload(request, env) {
     return json({ error: "File too large (max 50 MB)" }, 413);
   }
 
+  // Get HubSpot token using existing OAuth credentials
+  const token = await getHubspotToken(env);
+  if (!token) {
+    return json({ error: "HubSpot auth failed — check CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN secrets" }, 500);
+  }
+
   const slug     = company.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "unknown";
   const date     = new Date().toISOString().slice(0, 10);
   const uid      = crypto.randomUUID().slice(0, 8);
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path     = `submissions/${date}_${slug}/${uid}_${safeName}`;
+  const folder   = `supy-onboarding/${date}_${slug}`;
 
-  const uploadRes = await fetch(
-    `${env.SUPABASE_URL}/storage/v1/object/onboarding-files/${path}`,
-    {
-      method:  "POST",
-      headers: {
-        "Authorization": `Bearer ${env.SUPABASE_ANON_KEY}`,
-        "Content-Type":  file.type || "application/octet-stream",
-      },
-      body: await file.arrayBuffer(),
-    }
-  );
+  // Build multipart form for HubSpot Files API v3
+  const hsForm = new FormData();
+  hsForm.append("file", new Blob([await file.arrayBuffer()], { type: file.type || "application/octet-stream" }), safeName);
+  hsForm.append("folderPath", folder);
+  hsForm.append("options", JSON.stringify({ access: "PUBLIC_INDEXABLE", overwrite: false, duplicateValidationStrategy: "NONE" }));
+  hsForm.append("fileName", `${uid}_${safeName}`);
+
+  const uploadRes = await fetch("https://api.hubapi.com/files/v3/files", {
+    method:  "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body:    hsForm,
+  });
+
+  const uploadJson = await uploadRes.json();
 
   if (!uploadRes.ok) {
-    const err = await uploadRes.text();
-    return json({ error: `Storage upload failed: ${err}` }, 500);
+    console.error("HubSpot file upload failed", uploadRes.status, JSON.stringify(uploadJson));
+    return json({ error: `File upload failed: ${uploadJson.message || uploadRes.status}` }, 500);
   }
 
-  // Public URL — works once the bucket policy is set to public
-  const fileUrl = `${env.SUPABASE_URL}/storage/v1/object/public/onboarding-files/${path}`;
-  return json({ url: fileUrl, key: path, name: file.name, size: file.size });
+  const fileUrl = uploadJson.url;
+  return json({ url: fileUrl, key: uploadJson.id, name: file.name, size: file.size });
 }
 
 async function appendLog(env, email, company, submittedAt, status) {
