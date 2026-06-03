@@ -321,9 +321,12 @@ async function upsertContact(token, d) {
   const lastname  = (d.champion_last_name  || "").trim();
   const champion_name = [d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s => s.trim()).join(" ");
 
+  const middlename = (d.champion_middle_name || "").trim();
+
   const props   = {
     email,
     firstname,
+    middlename,
     lastname,
     jobtitle:  d.champion_title,
   };
