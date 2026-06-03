@@ -317,16 +317,13 @@ async function upsertContact(token, d) {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   const email   = d.champion_email;
 
-  const firstname = (d.champion_first_name || "").trim();
+  const firstname = [d.champion_first_name, d.champion_middle_name].filter(Boolean).map(s => s.trim()).join(" ");
   const lastname  = (d.champion_last_name  || "").trim();
   const champion_name = [d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s => s.trim()).join(" ");
-
-  const middlename = (d.champion_middle_name || "").trim();
 
   const props   = {
     email,
     firstname,
-    middlename,
     lastname,
     jobtitle:  d.champion_title,
   };
