@@ -181,7 +181,21 @@ function sendDraftReminders() {
       + "</div>";
 
     try {
-      GmailApp.sendEmail(email, subject, "", { htmlBody: body, name: "Supy Onboarding", cc: "csms@supy.io" });
+      GmailApp.sendEmail(email, subject, "", { htmlBody: body, name: "Supy Onboarding" });
+
+      // Forward a copy to CSMs — reply-to points to the customer so CSM replies go directly to them
+      var fwdBody = "<p style='color:#555;font-size:12px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:16px'>"
+        + "---------- Forwarded reminder ----------<br>"
+        + "<b>To:</b> " + name + " &lt;" + email + "&gt;<br>"
+        + "<b>Subject:</b> " + subject
+        + "</p>"
+        + body;
+      GmailApp.sendEmail("csms@supy.io", "FWD: " + subject, "", {
+        htmlBody: fwdBody,
+        name: "Supy Onboarding",
+        replyTo: email
+      });
+
       reminded++;
       Logger.log("Reminded: " + email);
     } catch(err) {
