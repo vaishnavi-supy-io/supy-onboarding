@@ -317,7 +317,7 @@ async function upsertContact(token, d) {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   const email   = d.champion_email;
 
-  const firstname = [d.champion_first_name, d.champion_middle_name].filter(Boolean).map(s => s.trim()).join(" ");
+  const firstname = (d.champion_first_name || "").trim();
   const lastname  = (d.champion_last_name  || "").trim();
   const champion_name = [d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s => s.trim()).join(" ");
 
@@ -325,6 +325,7 @@ async function upsertContact(token, d) {
     email,
     firstname,
     lastname,
+    champion_middle_name: (d.champion_middle_name || "").trim(),
     jobtitle:  d.champion_title,
   };
   // Only include phone if it looks valid (must start with + and country code)
