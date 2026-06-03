@@ -50,7 +50,7 @@ def get_hubspot_token():
 def upsert_contact(token, d):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     email = d.get("champion_email")
-    props = {"email": email, "firstname": d.get("champion_name"), "jobtitle": d.get("champion_title"), "phone": d.get("champion_phone")}
+    props = {"email": email, "firstname": d.get("champion_first_name"), "lastname": d.get("champion_last_name"), "jobtitle": d.get("champion_title"), "phone": d.get("champion_phone")}
     search = requests.post("https://api.hubapi.com/crm/v3/objects/contacts/search", headers=headers,
                            json={"filterGroups": [{"filters": [{"propertyName": "email", "operator": "EQ", "value": email}]}]})
     results = search.json().get("results", [])
@@ -107,7 +107,8 @@ def build_note(d, branches, submitted_at):
     it_same = (d.get("it_same_as_champion") or "").lower()
     
     # 🟢 UPDATED: Extracts POS and Accounting safely and formats them outside the IT Name block
-    it_contact = f"<b>Same as Internal Champion</b> — {d.get('champion_name','')}" if it_same == "yes" else f"Name: {d.get('it_name','')}<br>Email: {d.get('it_email','')}"
+    champion_name = " ".join(filter(None, [d.get("champion_first_name","").strip(), d.get("champion_middle_name","").strip(), d.get("champion_last_name","").strip()]))
+    it_contact = f"<b>Same as Internal Champion</b> — {champion_name}" if it_same == "yes" else f"Name: {d.get('it_name','')}<br>Email: {d.get('it_email','')}"
     it_block = f"{it_contact}<br><br><b>POS System:</b> {d.get('pos_system','')}<br><b>Accounting SW:</b> {d.get('accounting_software','')}"
     
     branch_rows = ""
@@ -122,7 +123,7 @@ def build_note(d, branches, submitted_at):
     return (
         f"<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3><p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: {submitted_at}</p>"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>COMPANY INFO</h4>Company Name: {d.get('company_name','')}"
-        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>Name: {d.get('champion_name','')}<br>Title: {d.get('champion_title','')}<br>Email: {d.get('champion_email','')}<br>Phone: {d.get('champion_phone','')}"
+        f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>Name: {champion_name}<br>Title: {d.get('champion_title','')}<br>Email: {d.get('champion_email','')}<br>Phone: {d.get('champion_phone','')}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FINANCE POC</h4>External Accounting Firm: {d.get('accounting_external','')}<br>Name: {d.get('finance_name','')}<br>Title: {d.get('finance_title','')}<br>Email: {d.get('finance_email','')}<br>Phone: {d.get('finance_phone','')}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>IT & SYSTEMS</h4>{it_block}"
         f"<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>BRANCH CONFIGURATION</h4>{branch_section}"
@@ -144,7 +145,7 @@ def send_slack_notification(d, branches, submitted_at, cid):
             "type": "section",
             "fields": [
                 {"type": "mrkdwn", "text": f"*Company:*\n{d.get('company_name', 'Unknown')}"},
-                {"type": "mrkdwn", "text": f"*Champion:*\n{d.get('champion_name', '-')} ({d.get('champion_email', '-')})"},
+                {"type": "mrkdwn", "text": f"*Champion:*\n{' '.join(filter(None, [d.get('champion_first_name','').strip(), d.get('champion_middle_name','').strip(), d.get('champion_last_name','').strip()])) or '-'} ({d.get('champion_email', '-')})"},
                 {"type": "mrkdwn", "text": f"*Branches:*\n{len(branches)} location(s)"},
                 {"type": "mrkdwn", "text": f"*Target Go-Live:*\n{d.get('golive_date', 'Not specified')}"},
                 {"type": "mrkdwn", "text": f"*POS System:*\n{d.get('pos_system', '-')}"},

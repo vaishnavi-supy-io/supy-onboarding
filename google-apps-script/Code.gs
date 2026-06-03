@@ -51,7 +51,7 @@ function doPost(e) {
 
     var row = [
       submittedAt, isDraft, clean(d.company_name),
-      clean(d.champion_name), clean(d.champion_title), clean(d.champion_email), clean(d.champion_phone),
+      [clean(d.champion_first_name), clean(d.champion_middle_name), clean(d.champion_last_name)].filter(Boolean).join(" "), clean(d.champion_title), clean(d.champion_email), clean(d.champion_phone),
       clean(d.accounting_external), clean(d.finance_name), clean(d.finance_title), clean(d.finance_email), clean(d.finance_phone),
       clean(d.it_same_as_champion), clean(d.it_name), clean(d.it_title), clean(d.it_email), clean(d.it_phone),
       clean(d.pos_system), clean(d.accounting_software),
@@ -181,7 +181,7 @@ function sendDraftReminders() {
       + "</div>";
 
     try {
-      GmailApp.sendEmail(email, subject, "", { htmlBody: body, name: "Supy Onboarding" });
+      GmailApp.sendEmail(email, subject, "", { htmlBody: body, name: "Supy Onboarding", cc: "csms@supy.io" });
       reminded++;
       Logger.log("Reminded: " + email);
     } catch(err) {

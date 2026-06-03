@@ -317,10 +317,9 @@ async function upsertContact(token, d) {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
   const email   = d.champion_email;
 
-  // Split full name into firstname / lastname so HubSpot doesn't double-append the last word
-  const nameParts = (d.champion_name || "").trim().split(/\s+/);
-  const firstname = nameParts.length > 1 ? nameParts.slice(0, -1).join(" ") : nameParts[0] || "";
-  const lastname  = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+  const firstname = (d.champion_first_name || "").trim();
+  const lastname  = (d.champion_last_name  || "").trim();
+  const champion_name = [d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s => s.trim()).join(" ");
 
   const props   = {
     email,
@@ -451,7 +450,7 @@ async function linkEverything(token, noteId, contactId, companyName) {
 function buildNote(d, branches, submittedAt) {
   const itSame    = (d.it_same_as_champion || "").toLowerCase();
   const itContact = itSame === "yes"
-    ? `<b>Same as Internal Champion</b> — ${d.champion_name || ""}`
+    ? `<b>Same as Internal Champion</b> — ${[d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s=>s.trim()).join(" ")}`
     : `Name: ${d.it_name || ""}<br>Email: ${d.it_email || ""}`;
   const itBlock   = `${itContact}<br><br><b>POS System:</b> ${d.pos_system || ""}<br><b>Accounting SW:</b> ${d.accounting_software || ""}`;
 
@@ -478,7 +477,7 @@ function buildNote(d, branches, submittedAt) {
   return [
     `<h3 style='color:#321e57;margin:0 0 4px'>SUPY ONBOARDING</h3><p style='color:#888;font-size:11px;margin:0 0 16px'>Submitted: ${submittedAt}</p>`,
     `<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>COMPANY INFO</h4>Company Name: ${d.company_name || ""}`,
-    `<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>Name: ${d.champion_name || ""}<br>Title: ${d.champion_title || ""}<br>Email: ${d.champion_email || ""}<br>Phone: ${d.champion_phone || ""}`,
+    `<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>INTERNAL CHAMPION</h4>Name: ${[d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s=>s.trim()).join(" ") || ""}<br>Title: ${d.champion_title || ""}<br>Email: ${d.champion_email || ""}<br>Phone: ${d.champion_phone || ""}`,
     `<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>FINANCE POC</h4>External Accounting Firm: ${d.accounting_external || ""}<br>Name: ${d.finance_name || ""}<br>Title: ${d.finance_title || ""}<br>Email: ${d.finance_email || ""}<br>Phone: ${d.finance_phone || ""}`,
     `<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>IT &amp; SYSTEMS</h4>${itBlock}`,
     `<h4 style='color:#503390;border-bottom:1px solid #e0d8f0;padding-bottom:4px;margin:14px 0 8px'>BRANCH CONFIGURATION</h4>${branchSection}`,
@@ -503,7 +502,7 @@ async function sendSlack(env, d, branches, submittedAt, cid) {
       type: "section",
       fields: [
         { type: "mrkdwn", text: `*Company:*\n${d.company_name || "Unknown"}` },
-        { type: "mrkdwn", text: `*Champion:*\n${d.champion_name || "-"} (${d.champion_email || "-"})` },
+        { type: "mrkdwn", text: `*Champion:*\n${[d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s=>s.trim()).join(" ") || "-"} (${d.champion_email || "-"})` },
         { type: "mrkdwn", text: `*Branches:*\n${branches.length} location(s)` },
         { type: "mrkdwn", text: `*Target Go-Live:*\n${d.golive_date || "Not specified"}` },
         { type: "mrkdwn", text: `*POS System:*\n${d.pos_system || "-"}` },
@@ -554,7 +553,7 @@ async function sendSlackTestChannel(env, d, branches, submittedAt, cid) {
       type: "section",
       fields: [
         { type: "mrkdwn", text: `*Company:*\n${d.company_name || "Unknown"}` },
-        { type: "mrkdwn", text: `*Champion:*\n${d.champion_name || "-"} (${d.champion_email || "-"})` },
+        { type: "mrkdwn", text: `*Champion:*\n${[d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s=>s.trim()).join(" ") || "-"} (${d.champion_email || "-"})` },
         { type: "mrkdwn", text: `*Branches:*\n${branches.length} location(s)` },
         { type: "mrkdwn", text: `*Target Go-Live:*\n${d.golive_date || "Not specified"}` },
         { type: "mrkdwn", text: `*POS System:*\n${d.pos_system || "-"}` },
