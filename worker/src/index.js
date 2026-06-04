@@ -319,7 +319,6 @@ async function upsertContact(token, d) {
 
   const firstname = (d.champion_first_name || "").trim();
   const lastname  = (d.champion_last_name  || "").trim();
-  const champion_name = [d.champion_first_name, d.champion_middle_name, d.champion_last_name].filter(Boolean).map(s => s.trim()).join(" ");
 
   const props   = {
     email,
@@ -342,9 +341,13 @@ async function upsertContact(token, d) {
 
   if (existing) {
     // Contact found — update it
-    await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${existing.id}`, {
+    const patchRes = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${existing.id}`, {
       method: "PATCH", headers, body: JSON.stringify({ properties: props }),
     });
+    if (!patchRes.ok) {
+      const patchErr = await patchRes.json().catch(() => ({}));
+      console.error("HubSpot PATCH failed", patchRes.status, JSON.stringify(patchErr));
+    }
     return { id: existing.id, action: "updated" };
   }
 
