@@ -603,7 +603,7 @@ textarea{resize:vertical;min-height:72px}
 <div class="submit-card">
   <button type="submit" class="submit-btn" id="submitBtn">Submit — Start my onboarding →</button>
   <div style="margin-top:12px;text-align:center">
-    <button type="button" id="saveDraftBtn" onclick="saveDraft()" style="background:none;border:1.5px solid #503390;color:#503390;padding:9px 20px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+    <button type="button" id="shareableDraftBtn" onclick="saveDraft()" style="background:none;border:1.5px solid #503390;color:#503390;padding:9px 20px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
       💾 Save progress & get shareable link
     </button>
   </div>
@@ -1083,7 +1083,7 @@ var _draftKey = null;
 })();
 
 function saveDraft() {
-  var btn = document.getElementById('saveDraftBtn');
+  var btn = document.getElementById('shareableDraftBtn');
   btn.disabled = true;
   btn.textContent = '💾 Saving…';
 
