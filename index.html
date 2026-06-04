@@ -602,6 +602,19 @@ textarea{resize:vertical;min-height:72px}
 
 <div class="submit-card">
   <button type="submit" class="submit-btn" id="submitBtn">Submit — Start my onboarding →</button>
+  <div style="margin-top:12px;text-align:center">
+    <button type="button" id="saveDraftBtn" onclick="saveDraft()" style="background:none;border:1.5px solid #503390;color:#503390;padding:9px 20px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+      💾 Save progress & get shareable link
+    </button>
+  </div>
+  <div id="draftLinkBox" style="display:none;margin-top:12px;background:#f0ebfb;border:1.5px solid #c8bee8;border-radius:8px;padding:12px 16px">
+    <div style="font-size:11px;color:#503390;font-weight:700;margin-bottom:6px">🔗 Shareable link — send this to your colleague:</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="draftLinkInput" type="text" readonly style="flex:1;font-size:11px;padding:6px 10px;border:1px solid #c8bee8;border-radius:5px;background:#fff;color:#333"/>
+      <button type="button" onclick="copyDraftLink()" style="background:#503390;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">Copy</button>
+    </div>
+    <div style="font-size:10px;color:#888;margin-top:6px">Anyone with this link can continue filling the form. Valid for 30 days.</div>
+  </div>
   <div class="submit-secure" style="margin-top:8px;font-size:9.5px;color:#aaa">🔒 Your data is submitted securely and saved directly to your CSM's system.</div>
 </div>
 
@@ -1035,6 +1048,92 @@ function uploadFile(input, hiddenId, btnId, statusId, progId) {
 
     xhr.send(fd);
   });
+}
+
+// ── Draft save / load ──────────────────────────────────────────
+
+var _draftKey = null;
+
+// On page load — check for ?draft=xxx in URL and load it
+(function loadDraftFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  var key = params.get('draft');
+  if (!key) return;
+  fetch('https://supy-onboarding.vaishnavi-5d1.workers.dev/draft/load?key=' + key)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.data) return;
+      _draftKey = key;
+      var d = res.data;
+      var form = document.getElementById('onboardingForm');
+      Object.keys(d).forEach(function(k) {
+        if (k.startsWith('_')) return;
+        var el = form.elements[k];
+        if (!el) return;
+        if (el.tagName === 'SELECT') { el.value = d[k]; }
+        else if (el.type === 'checkbox') { el.checked = !!d[k]; }
+        else { el.value = d[k]; }
+      });
+      // Show the shareable link box with current key
+      document.getElementById('draftLinkInput').value = window.location.href.split('?')[0] + '?draft=' + key;
+      document.getElementById('draftLinkBox').style.display = 'block';
+      showBanner('✅ Draft loaded! Continue filling the form and save again when done.', '#1a6045', '#E8FAF0');
+    })
+    .catch(function() {});
+})();
+
+function saveDraft() {
+  var btn = document.getElementById('saveDraftBtn');
+  btn.disabled = true;
+  btn.textContent = '💾 Saving…';
+
+  var form = document.getElementById('onboardingForm');
+  var data = {};
+  Array.from(form.elements).forEach(function(el) {
+    if (!el.name) return;
+    if (el.type === 'checkbox') data[el.name] = el.checked;
+    else data[el.name] = el.value;
+  });
+  if (_draftKey) data._draft_key = _draftKey;
+
+  fetch('https://supy-onboarding.vaishnavi-5d1.workers.dev/draft/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    _draftKey = res.key;
+    var link = window.location.href.split('?')[0] + '?draft=' + res.key;
+    document.getElementById('draftLinkInput').value = link;
+    document.getElementById('draftLinkBox').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '💾 Save progress & get shareable link';
+    // Update URL without reload
+    window.history.replaceState({}, '', '?draft=' + res.key);
+  })
+  .catch(function() {
+    btn.disabled = false;
+    btn.textContent = '💾 Save progress & get shareable link';
+    alert('Failed to save draft. Please try again.');
+  });
+}
+
+function copyDraftLink() {
+  var input = document.getElementById('draftLinkInput');
+  input.select();
+  document.execCommand('copy');
+  var btn = event.target;
+  btn.textContent = 'Copied!';
+  setTimeout(function() { btn.textContent = 'Copy'; }, 2000);
+}
+
+function showBanner(msg, color, bg) {
+  var b = document.createElement('div');
+  b.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px 20px;background:' + bg + ';color:' + color + ';font-size:13px;font-weight:700;text-align:center;z-index:9999;border-bottom:2px solid ' + color;
+  b.textContent = msg;
+  document.body.prepend(b);
+  setTimeout(function() { b.remove(); }, 4000);
 }
 
 restoreFromLocal();

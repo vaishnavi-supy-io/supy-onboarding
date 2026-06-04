@@ -65,6 +65,14 @@ export default {
       return handleWebhook(request, env);
     }
 
+    if (url.pathname === "/draft/save" && request.method === "POST") {
+      return handleDraftSave(request, env);
+    }
+
+    if (url.pathname === "/draft/load" && request.method === "GET") {
+      return handleDraftLoad(request, env);
+    }
+
     if (url.pathname === "/upload" && request.method === "POST") {
       return handleUpload(request, env);
     }
@@ -736,4 +744,41 @@ async function handleDownload(request, env) {
       "Cache-Control":       "no-store",
     },
   });
+}
+
+// ── Draft save/load handlers ──────────────────────────────────
+
+async function handleDraftSave(request, env) {
+  if (!env.DRAFTS) return json({ error: "DRAFTS KV not configured" }, 500);
+
+  const body = await request.json().catch(() => null);
+  if (!body) return json({ error: "Invalid JSON" }, 400);
+
+  // Use provided key (for updates) or generate a new one
+  const key = body._draft_key || generateDraftKey();
+  const payload = { ...body, _draft_key: key, _saved_at: new Date().toISOString() };
+
+  // Store for 30 days
+  await env.DRAFTS.put(key, JSON.stringify(payload), { expirationTtl: 60 * 60 * 24 * 30 });
+
+  return json({ key, draft_url: `https://vaishnavi-supy-io.github.io/supy-onboarding/?draft=${key}` });
+}
+
+async function handleDraftLoad(request, env) {
+  if (!env.DRAFTS) return json({ error: "DRAFTS KV not configured" }, 500);
+
+  const key = new URL(request.url).searchParams.get("key");
+  if (!key) return json({ error: "Missing key" }, 400);
+
+  const data = await env.DRAFTS.get(key);
+  if (!data) return json({ error: "Draft not found or expired" }, 404);
+
+  return json({ data: JSON.parse(data) });
+}
+
+function generateDraftKey() {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let key = "";
+  for (let i = 0; i < 8; i++) key += chars[Math.floor(Math.random() * chars.length)];
+  return key;
 }
