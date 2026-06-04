@@ -251,3 +251,39 @@ function testDraftReminder() {
     Logger.log("Test reminder sent for: " + email);
   }
 }
+
+// ── Run this function manually to test the full reminder + forward flow ──
+function testReminderFlow() {
+  var testEmail   = "vaishnavi@supy.io";
+  var testName    = "Vaishnavi (Test)";
+  var testCompany = "Test Restaurant Group";
+
+  var subject = "Reminder: Complete your Supy onboarding form";
+  var body = "<div style='font-family:Arial,sans-serif;max-width:600px;padding:24px'>"
+    + "<img src='https://cdn.prod.website-files.com/68933e53d968ca7f0c808561/690cc143814230554277cf54_supy-favicon.svg' height='32' style='margin-bottom:20px'><br>"
+    + "<p><b style='color:#c0392b'>[TEST] This is a test reminder email</b></p>"
+    + "<p>Hi " + testName + ",</p>"
+    + "<p>We noticed you started filling out the Supy onboarding form for <b>" + testCompany + "</b> but have not completed it yet.</p>"
+    + "<p>It only takes a few more minutes - your progress has been saved, so you can pick up right where you left off.</p>"
+    + "<br><a href='" + FORM_URL + "' style='display:inline-block;padding:12px 20px;background:#321e57;color:#fff;text-decoration:none;border-radius:6px;font-weight:700'>Complete my form</a>"
+    + "<br><br><p style='color:#888;font-size:11px'>If you have already submitted or need help, just reply to this email.</p>"
+    + "</div>";
+
+  // 1. Send reminder to customer
+  GmailApp.sendEmail(testEmail, subject, "", { htmlBody: body, name: "Supy Onboarding" });
+  Logger.log("✅ Reminder sent to: " + testEmail);
+
+  // 2. Forward copy to csms — replyTo points to customer
+  var fwdBody = "<p style='color:#555;font-size:12px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:16px'>"
+    + "---------- Forwarded reminder ----------<br>"
+    + "<b>To:</b> " + testName + " &lt;" + testEmail + "&gt;<br>"
+    + "<b>Subject:</b> " + subject
+    + "</p>"
+    + body;
+  GmailApp.sendEmail("csms@supy.io", "FWD: " + subject, "", {
+    htmlBody: fwdBody,
+    name: "Supy Onboarding",
+    replyTo: testEmail
+  });
+  Logger.log("✅ FWD copy sent to csms@supy.io (replyTo: " + testEmail + ")");
+}
