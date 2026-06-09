@@ -195,9 +195,14 @@ async function handleWebhook(request, env) {
     results.push(testOk ? "slack-test:ok" : "slack-test:fail");
   }
 
-  // 3. Gmail
+  // 3. Gmail — internal notification + customer confirmation
+  // Confirmation only sent when HubSpot recognised the contact (limits relay abuse)
   const emailOk = await sendEmail(env, d, branches, submittedAt, cid);
   results.push(emailOk ? "email:ok" : "email:fail");
+  if (cid) {
+    const confirmOk = await sendCustomerConfirmation(env, d, branches, submittedAt);
+    results.push(confirmOk ? "confirm:ok" : "confirm:fail");
+  }
 
   // 4. Google Sheets
   const sheetsOk = await logToSheets(env, d, branches, submittedAt);
@@ -625,9 +630,8 @@ async function sendEmail(env, d, branches, submittedAt, cid) {
   const hsLink  = cid
     ? `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-1/${cid}`
     : "https://app.hubspot.com/contacts/";
-  const company = d.company_name || "Unknown Company";
+  const company = String(d.company_name || "Unknown Company").replace(/[\r\n]+/g, " ").slice(0, 200);
 
-  // Build full form data body (same as HubSpot note)
   const noteBody = buildNote(d, branches, submittedAt);
   const htmlBody = [
     `<div style='font-family:Arial,sans-serif;max-width:700px;margin:auto;padding:24px;border:1px solid #e0d8f0;border-radius:8px'>`,
@@ -635,16 +639,90 @@ async function sendEmail(env, d, branches, submittedAt, cid) {
     `</div>`,
   ].join("");
 
-  // Send to internal team + the person who filled the form
-  const submitterEmail = (d.champion_email || "").trim();
-  const allRecipients = submitterEmail && !EMAIL_RECIPIENTS.includes(submitterEmail)
-    ? [...EMAIL_RECIPIENTS, submitterEmail]
-    : EMAIL_RECIPIENTS;
-
   const mime = [
     `From: ${EMAIL_FROM}`,
-    `To: ${allRecipients.join(", ")}`,
+    `To: ${EMAIL_RECIPIENTS.join(", ")}`,
     `Subject: New Onboarding: ${company}`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/html; charset=UTF-8`,
+    ``,
+    htmlBody,
+  ].join("\r\n");
+
+  const raw = btoa(unescape(encodeURIComponent(mime)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+  const r = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ raw }),
+  });
+  return r.status === 200;
+}
+
+function esc(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function sendCustomerConfirmation(env, d, branches, submittedAt) {
+  const token = await getGmailToken(env);
+  if (!token) return false;
+
+  const customerEmail = (d.champion_email || "").trim();
+  if (!customerEmail || !/^[^\s<>@\r\n,;"]+@[^\s<>@\r\n,;"]+\.[^\s<>@\r\n,;"]+$/.test(customerEmail)) return false;
+
+  const firstName = esc((d.champion_first_name || "").trim() || "there");
+  const company   = esc(String(d.company_name || "your company").replace(/[\r\n]+/g, " ").slice(0, 200));
+
+  const noteBody  = buildNote(d, branches, submittedAt);
+
+  const htmlBody = `
+<div style="font-family:Arial,sans-serif;max-width:680px;margin:auto;color:#1a1a2e">
+
+  <div style="background:#321e57;padding:24px 28px;border-radius:8px 8px 0 0">
+    <img src="https://cdn.prod.website-files.com/68933e53d968ca7f0c808561/690cc143814230554277cf54_supy-favicon.svg" height="28" style="vertical-align:middle;margin-right:10px">
+    <span style="color:#fff;font-size:18px;font-weight:700;vertical-align:middle">Supy</span>
+  </div>
+
+  <div style="background:#fff;padding:28px;border:1px solid #e0d8f0;border-top:none;border-radius:0 0 8px 8px">
+
+    <h2 style="color:#321e57;margin:0 0 8px">You're all set, ${firstName}!</h2>
+    <p style="color:#555;margin:0 0 20px;font-size:15px">
+      Thank you for completing the Supy onboarding form for <strong>${company}</strong>.
+      Your Customer Success Manager has been notified and will be reaching out shortly to schedule your first session.
+    </p>
+
+    <div style="background:#f5f2ff;border-left:4px solid #503390;padding:12px 16px;border-radius:4px;margin-bottom:24px">
+      <p style="margin:0;font-size:14px;color:#321e57">
+        <strong>Need to make a change?</strong><br>
+        If anything in your submission needs to be updated or corrected, simply <strong>reply to this email</strong> and your CSM will be notified automatically with the full context.
+      </p>
+    </div>
+
+    <h3 style="color:#503390;font-size:14px;border-bottom:1px solid #e0d8f0;padding-bottom:6px;margin:0 0 16px">
+      Your submission summary
+    </h3>
+
+    ${noteBody}
+
+    <hr style="border:none;border-top:1px solid #e0d8f0;margin:24px 0">
+    <p style="color:#aaa;font-size:11px;margin:0">
+      This confirmation was sent to ${esc(customerEmail)}. Reply any time to update your information — your CSM will receive your message directly.
+    </p>
+
+  </div>
+</div>`;
+
+  const mime = [
+    `From: Supy Onboarding <${EMAIL_FROM}>`,
+    `To: ${customerEmail}`,
+    `Reply-To: csms@supy.io`,
+    `Subject: Your Supy onboarding has been received — ${company}`,
     `MIME-Version: 1.0`,
     `Content-Type: text/html; charset=UTF-8`,
     ``,
@@ -777,8 +855,5 @@ async function handleDraftLoad(request, env) {
 }
 
 function generateDraftKey() {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let key = "";
-  for (let i = 0; i < 8; i++) key += chars[Math.floor(Math.random() * chars.length)];
-  return key;
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 24);
 }

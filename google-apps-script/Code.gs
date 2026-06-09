@@ -181,21 +181,7 @@ function sendDraftReminders() {
       + "</div>";
 
     try {
-      GmailApp.sendEmail(email, subject, "", { htmlBody: body, name: "Supy Onboarding" });
-
-      // Forward a copy to CSMs — reply-to points to the customer so CSM replies go directly to them
-      var fwdBody = "<p style='color:#555;font-size:12px;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:16px'>"
-        + "---------- Forwarded reminder ----------<br>"
-        + "<b>To:</b> " + name + " &lt;" + email + "&gt;<br>"
-        + "<b>Subject:</b> " + subject
-        + "</p>"
-        + body;
-      GmailApp.sendEmail("csms@supy.io", "FWD: " + subject, "", {
-        htmlBody: fwdBody,
-        name: "Supy Onboarding",
-        replyTo: email
-      });
-
+      GmailApp.sendEmail(email, subject, "", { htmlBody: body, name: "Supy Onboarding", cc: "csms@supy.io" });
       reminded++;
       Logger.log("Reminded: " + email);
     } catch(err) {
@@ -213,43 +199,6 @@ function createDailyTrigger() {
   });
   ScriptApp.newTrigger("sendDraftReminders").timeBased().everyDays(1).atHour(9).create();
   Logger.log("Daily trigger created - runs every day at 9am.");
-}
-
-
-function testDraftReminder() {
-  var sheet   = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Sheet1");
-  var lastRow = sheet.getLastRow();
-  if (lastRow <= 1) { Logger.log("No data rows."); return; }
-
-  var now  = new Date();
-  var data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
-
-  for (var i = 0; i < data.length; i++) {
-    var isDraft = (data[i][1] || "").toString().trim() === "DRAFT";
-    var email   = (data[i][5] || "").toString().trim();
-    var name    = (data[i][3] || "there").toString().trim();
-    var company = (data[i][2] || "").toString().trim();
-    var savedAt = data[i][0];
-
-    if (!isDraft || !email) continue;
-
-    var minsOld = (now - new Date(savedAt)) / (1000 * 60);
-    Logger.log(email + " - draft age: " + Math.round(minsOld) + " mins");
-    if (minsOld < 5) continue;
-
-    var subject = "[TEST] Reminder: Complete your Supy onboarding form";
-    var body = "<div style='font-family:Arial,sans-serif;max-width:600px;padding:24px'>"
-      + "<p><b>[THIS IS A TEST EMAIL]</b></p>"
-      + "<p>Hi " + name + ",</p>"
-      + "<p>We noticed you started filling out the Supy onboarding form"
-      + (company ? " for <b>" + company + "</b>" : "") + " but have not completed it yet.</p>"
-      + "<p>Your progress has been saved - pick up right where you left off.</p>"
-      + "<br><a href='" + FORM_URL + "' style='display:inline-block;padding:12px 20px;background:#321e57;color:#fff;text-decoration:none;border-radius:6px;font-weight:700'>Complete my form</a>"
-      + "</div>";
-
-    GmailApp.sendEmail("vaishnavi@supy.io", subject, "", { htmlBody: body, name: "Supy Onboarding" });
-    Logger.log("Test reminder sent for: " + email);
-  }
 }
 
 // ── Run this function manually to test the full reminder + forward flow ──

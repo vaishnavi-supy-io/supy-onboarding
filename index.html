@@ -602,6 +602,19 @@ textarea{resize:vertical;min-height:72px}
 
 <div class="submit-card">
   <button type="submit" class="submit-btn" id="submitBtn">Submit — Start my onboarding →</button>
+  <div style="margin-top:12px;text-align:center">
+    <button type="button" id="shareableDraftBtn" onclick="saveDraft()" style="background:none;border:1.5px solid #503390;color:#503390;padding:9px 20px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+      💾 Save progress & get shareable link
+    </button>
+  </div>
+  <div id="draftLinkBox" style="display:none;margin-top:12px;background:#f0ebfb;border:1.5px solid #c8bee8;border-radius:8px;padding:12px 16px">
+    <div style="font-size:11px;color:#503390;font-weight:700;margin-bottom:6px">🔗 Shareable link — send this to your colleague:</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="draftLinkInput" type="text" readonly style="flex:1;font-size:11px;padding:6px 10px;border:1px solid #c8bee8;border-radius:5px;background:#fff;color:#333"/>
+      <button type="button" onclick="copyDraftLink()" style="background:#503390;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">Copy</button>
+    </div>
+    <div style="font-size:10px;color:#888;margin-top:6px">Anyone with this link can continue filling the form. Valid for 30 days.</div>
+  </div>
   <div class="submit-secure" style="margin-top:8px;font-size:9.5px;color:#aaa">🔒 Your data is submitted securely and saved directly to your CSM's system.</div>
 </div>
 
@@ -880,6 +893,7 @@ function handleSubmit(e) {
   }
 
   document.getElementById('submitBtn').disabled = true;
+  clearTimeout(_sheetsTimer);
   showLoading('Saving your data…', 'Submitting your onboarding profile.', 30);
 
   var fd = new FormData(document.getElementById('form'));
@@ -892,6 +906,17 @@ function handleSubmit(e) {
     .then(function(res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       updateLoading('Done!', 'Your data has been saved.', 100);
+      // Mark the sheet row as submitted (clears DRAFT) using the browser session
+      // which has Google auth — the worker cannot do this without cookies.
+      if (SHEETS_URL) {
+        var submitData = {};
+        document.querySelectorAll('[name]').forEach(function(el) { submitData[el.name] = el.value; });
+        submitData['branches_json'] = JSON.stringify(collectBranches());
+        submitData['submitted_at']  = new Date().toISOString();
+        var params = new URLSearchParams();
+        Object.keys(submitData).forEach(function(k) { params.append(k, submitData[k]); });
+        fetch(SHEETS_URL, { method: 'POST', mode: 'no-cors', body: params }).catch(function(){});
+      }
       setTimeout(function() {
         clearDraft();
         hideLoading();
@@ -1005,6 +1030,7 @@ function uploadFile(input, hiddenId, btnId, statusId, progId) {
           var existingUrls = existing ? existing.split(',').filter(Boolean) : [];
           var allUrls = existingUrls.concat(goodUrls);
           document.getElementById(hiddenId).value = allUrls.join(',');
+          saveToLocal(); // persist file URLs to localStorage + auto-save to Sheets
           btn.innerHTML = '✅ Add more / done (' + allUrls.length + ' file' + (allUrls.length !== 1 ? 's' : '') + ')';
           // show all accumulated chips plus new ones
           var prevChips = status.innerHTML.replace(/<span[^>]*>⏳[^<]*<\/span>/g, '');
@@ -1039,6 +1065,135 @@ function uploadFile(input, hiddenId, btnId, statusId, progId) {
 
 
 restoreFromLocal();
+
+// ── Draft save / load ──────────────────────────────────────────
+var _draftKey = null;
+
+(function loadDraftFromUrl() {
+  var params = new URLSearchParams(window.location.search);
+  var key = params.get('draft');
+  if (!key) return;
+  fetch('https://supy-onboarding.vaishnavi-5d1.workers.dev/draft/load?key=' + key)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.data) return;
+      _draftKey = key;
+      var d = res.data;
+      var form = document.getElementById('form');
+      // Restore named fields
+      Object.keys(d).forEach(function(k) {
+        if (k.startsWith('_')) return;
+        var el = form.elements[k];
+        if (!el) return;
+        if (el.tagName === 'SELECT') { el.value = d[k]; }
+        else if (el.type === 'checkbox') { el.checked = !!d[k]; }
+        else { el.value = d[k]; }
+      });
+      // Restore branch rows
+      if (Array.isArray(d['_branches']) && d['_branches'].length > 0) {
+        var container = document.getElementById('branchRows');
+        container.innerHTML = '';
+        d['_branches'].forEach(function(b) {
+          var row = document.createElement('div');
+          row.className = 'branch-row';
+          row.innerHTML =
+            '<div class="bc"><input type="text" placeholder="e.g. Branch name" required class="branch-req"/></div>'
+            +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
+            +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
+            +'<div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
+            +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
+            +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
+          var texts = row.querySelectorAll('input[type=text]');
+          var ampm  = row.querySelectorAll('select.ampm-sel');
+          function splitTime(val) { var p = (val||'').trim().split(' '); return {t: p[0]||'', m: p[1]||'PM'}; }
+          var op = splitTime(b.open), cl = splitTime(b.close);
+          if (texts[0]) texts[0].value = b.name || '';
+          if (texts[1]) texts[1].value = b.address || '';
+          if (texts[2]) texts[2].value = b.cost_center || '';
+          if (texts[3]) texts[3].value = op.t;
+          if (ampm[0])  ampm[0].value  = op.m;
+          if (texts[4]) texts[4].value = cl.t;
+          if (ampm[1])  ampm[1].value  = cl.m;
+          if (texts[5]) texts[5].value = b.details || '';
+          container.appendChild(row);
+        });
+      }
+      // Update file upload button UI if URLs were saved
+      ['inv', 'sup'].forEach(function(prefix) {
+        var hiddenId = prefix === 'inv' ? 'invoices_link_val' : 'suppliers_link_val';
+        var btnId    = prefix === 'inv' ? 'invBtn' : 'supBtn';
+        var statusId = prefix === 'inv' ? 'invStatus' : 'supStatus';
+        var hidden = document.getElementById(hiddenId);
+        var btn    = document.getElementById(btnId);
+        var status = document.getElementById(statusId);
+        if (hidden && hidden.value && btn && status) {
+          var urls = hidden.value.split(',').filter(Boolean);
+          btn.innerHTML = '✅ Add more / done (' + urls.length + ' file' + (urls.length !== 1 ? 's' : '') + ')';
+          status.innerHTML = urls.map(function(u) {
+            return '<span class="file-done-chip">✅ ' + u.split('/').pop().split('?')[0] + '</span>';
+          }).join(' ');
+        }
+      });
+      document.getElementById('draftLinkInput').value = window.location.href.split('?')[0] + '?draft=' + key;
+      document.getElementById('draftLinkBox').style.display = 'block';
+      var b = document.createElement('div');
+      b.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px 20px;background:#E8FAF0;color:#1a6045;font-size:13px;font-weight:700;text-align:center;z-index:9999;border-bottom:2px solid #1a6045';
+      b.textContent = '✅ Draft loaded! Continue filling the form and save again when done.';
+      document.body.prepend(b);
+      setTimeout(function() { b.remove(); }, 4000);
+    })
+    .catch(function() {});
+})();
+
+function saveDraft() {
+  var btn = document.getElementById('shareableDraftBtn');
+  btn.disabled = true;
+  btn.textContent = '💾 Saving…';
+  var form = document.getElementById('form');
+  var data = {};
+  Array.from(form.elements).forEach(function(el) {
+    if (!el.name) return;
+    if (el.type === 'checkbox') data[el.name] = el.checked;
+    else data[el.name] = el.value;
+  });
+  if (_draftKey) data._draft_key = _draftKey;
+  data['_branches'] = collectBranches();  // capture branch rows
+  console.log('[Draft] Sending save request…', data);
+  fetch('https://supy-onboarding.vaishnavi-5d1.workers.dev/draft/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r) {
+    console.log('[Draft] Response status:', r.status, r.ok);
+    return r.text();
+  })
+  .then(function(text) {
+    console.log('[Draft] Response body:', text);
+    var res = JSON.parse(text);
+    _draftKey = res.key;
+    var link = window.location.href.split('?')[0] + '?draft=' + res.key;
+    document.getElementById('draftLinkInput').value = link;
+    document.getElementById('draftLinkBox').style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '💾 Save progress & get shareable link';
+    window.history.replaceState({}, '', '?draft=' + res.key);
+  })
+  .catch(function(err) {
+    console.error('[Draft] Error:', err);
+    btn.disabled = false;
+    btn.textContent = '💾 Save progress & get shareable link';
+    alert('Failed to save draft: ' + err.message);
+  });
+}
+
+function copyDraftLink() {
+  var input = document.getElementById('draftLinkInput');
+  input.select();
+  document.execCommand('copy');
+  event.target.textContent = 'Copied!';
+  setTimeout(function() { event.target.textContent = 'Copy'; }, 2000);
+}
 </script>
 </body>
 </html>

@@ -4,8 +4,9 @@ compatibility_date = "2024-01-01"
 
 # ── KV Namespace for draft form sessions ──────────────────────
 [[kv_namespaces]]
-binding = "DRAFTS"
-id      = "0fd82fc085b840c9b704181d5c79c83b"
+binding    = "DRAFTS"
+id         = "0fd82fc085b840c9b704181d5c79c83b"
+preview_id = "8eedb20ac0e549928fb2e98cdb635cf4"
 
 # ── KV Namespace for submission logs ──────────────────────────
 # After running `wrangler kv:namespace create LOGS`, paste the
