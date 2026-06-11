@@ -190,6 +190,7 @@ export default {
         CLOUDINARY_CLOUD_NAME: Boolean(env.CLOUDINARY_CLOUD_NAME),
         CLOUDINARY_API_KEY:    Boolean(env.CLOUDINARY_API_KEY),
         CLOUDINARY_API_SECRET: Boolean(env.CLOUDINARY_API_SECRET),
+        ADMIN_TOKEN:          Boolean(env.ADMIN_TOKEN),
         SLACK_TEST_WEBHOOK:   Boolean(env.SLACK_TEST_WEBHOOK_URL),
         cloudinary_reachable: cloudinaryReachable,
         cloudinary_error:     cloudinaryError,
@@ -897,8 +898,9 @@ async function handleDownload(request, env) {
 
   const cdnUrl  = `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/raw/upload/s--${sig}--/${key}`;
   const cdnResp = await fetch(cdnUrl, { redirect: "manual" });
+  const cdnStatus = cdnResp.status;
 
-  if (cdnResp.status === 301 || cdnResp.status === 302) {
+  if (cdnStatus === 301 || cdnStatus === 302) {
     return Response.redirect(cdnResp.headers.get("location"), 302);
   }
   if (cdnResp.ok) {
@@ -914,13 +916,14 @@ async function handleDownload(request, env) {
   }
 
   // Fallback 1: might be stored as image type (e.g. PDF uploaded via auto/upload).
-  // For image resources, to_sign = public_id WITHOUT format extension (format is appended in URL only).
   const ext = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
   if (ext) {
     const imgBuf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(key + env.CLOUDINARY_API_SECRET));
     const imgBytes = new Uint8Array(imgBuf).slice(0, 6);
     const imgSig = btoa(String.fromCharCode(...imgBytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const imgUrl = `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/s--${imgSig}--/${key}.${ext}`;
+    // If key already ends with .ext (raw upload returned public_id with extension), don't double-append
+    const imgKey = key.toLowerCase().endsWith(`.${ext}`) ? key.slice(0, -(ext.length + 1)) : key;
+    const imgUrl = `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/s--${imgSig}--/${imgKey}.${ext}`;
     const imgResp = await fetch(imgUrl, { redirect: "manual" });
     if (imgResp.status === 301 || imgResp.status === 302) {
       return Response.redirect(imgResp.headers.get("location"), 302);
@@ -938,21 +941,23 @@ async function handleDownload(request, env) {
     }
   }
 
-  // Fallback 2: private file. Try raw/download then image/download (image-type PDFs need format param).
+  // Fallback 2: try Cloudinary download API for both type=upload and type=private,
+  // across raw and image resource types. Covers files whose CDN delivery is blocked.
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const fileExt = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
-  async function tryPrivateDownload(resourceType) {
-    const parts = [`attachment=${filename}`, `public_id=${key}`, `timestamp=${timestamp}`, `type=private`];
+  async function tryApiDownload(resourceType, deliveryType) {
+    const parts = [`attachment=${filename}`, `public_id=${key}`, `timestamp=${timestamp}`, `type=${deliveryType}`];
     if (resourceType === "image" && fileExt) parts.push(`format=${fileExt}`);
     parts.sort();
     const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(parts.join("&") + env.CLOUDINARY_API_SECRET));
     const signature = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
-    const p = new URLSearchParams({ public_id: key, timestamp, api_key: env.CLOUDINARY_API_KEY, signature, attachment: filename, type: "private" });
+    const p = new URLSearchParams({ public_id: key, timestamp, api_key: env.CLOUDINARY_API_KEY, signature, attachment: filename, type: deliveryType });
     if (resourceType === "image" && fileExt) p.set("format", fileExt);
     return fetch(`https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/${resourceType}/download?${p}`, { redirect: "manual" });
   }
-  for (const rt of ["raw", "image"]) {
-    const dlResp = await tryPrivateDownload(rt);
+  // Try upload type first (new files), then private type (batch-fixed legacy files)
+  for (const [rt, dt] of [["raw","upload"], ["raw","private"], ["image","upload"], ["image","private"]]) {
+    const dlResp = await tryApiDownload(rt, dt);
     if (dlResp.status === 302) return Response.redirect(dlResp.headers.get("location"), 302);
     if (dlResp.ok) {
       return new Response(dlResp.body, {
@@ -961,6 +966,7 @@ async function handleDownload(request, env) {
       });
     }
   }
+
   return json({ error: "File not found" }, 404);
 }
 
