@@ -1033,14 +1033,30 @@ function uploadFile(input, hiddenId, btnId, statusId, progId) {
           document.getElementById(hiddenId).value = allUrls.join(',');
           saveToLocal(); // persist file URLs to localStorage + auto-save to Sheets
           btn.innerHTML = '✅ Add more / done (' + allUrls.length + ' file' + (allUrls.length !== 1 ? 's' : '') + ')';
-          // show all accumulated chips plus new ones
-          var prevChips = status.innerHTML.replace(/<span[^>]*>⏳[^<]*<\/span>/g, '');
-          var newChips = files.map(function(f, i) {
-            return urls[i]
-              ? '<a href="' + urls[i] + '" class="file-done-chip" target="_blank" download="' + f.name.replace(/"/g,'') + '">⬇ ' + f.name + '</a>'
-              : '<span class="file-err-chip">❌ ' + f.name + ' (failed)</span>';
-          }).join(' ');
-          status.innerHTML = prevChips + ' ' + newChips;
+          // show all accumulated chips plus new ones (DOM-built to avoid XSS)
+          var loading = status.querySelector('.file-loading-chip');
+          if (loading) loading.remove();
+          files.forEach(function(f, i) {
+            if (urls[i]) {
+              var a = document.createElement('a');
+              try {
+                var p = new URL(urls[i]);
+                if (!/^https?:$/.test(p.protocol)) throw new Error('bad protocol');
+                a.href = p.href;
+              } catch(e) { return; }
+              a.className = 'file-done-chip';
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              a.download = f.name;
+              a.textContent = '⬇ ' + f.name;
+              status.appendChild(a);
+            } else {
+              var s = document.createElement('span');
+              s.className = 'file-err-chip';
+              s.textContent = '❌ ' + f.name + ' (failed)';
+              status.appendChild(s);
+            }
+          });
         } else {
           btn.innerHTML = '📎 Retry';
           status.innerHTML = '<span class="file-err-chip">❌ All uploads failed — please retry</span>';
@@ -1130,11 +1146,23 @@ var _draftKey = null;
         if (hidden && hidden.value && btn && status) {
           var urls = hidden.value.split(',').filter(Boolean);
           btn.innerHTML = '✅ Add more / done (' + urls.length + ' file' + (urls.length !== 1 ? 's' : '') + ')';
-          status.innerHTML = urls.map(function(u) {
+          status.innerHTML = '';
+          urls.forEach(function(u) {
             var fname = u;
             try { fname = new URL(u).searchParams.get('name') || u.split('/').pop().split('?')[0]; } catch(e) {}
-            return '<a href="' + u + '" class="file-done-chip" target="_blank" download="' + fname.replace(/"/g,'') + '">⬇ ' + fname + '</a>';
-          }).join(' ');
+            var a = document.createElement('a');
+            try {
+              var p = new URL(u);
+              if (!/^https?:$/.test(p.protocol)) throw new Error('bad protocol');
+              a.href = p.href;
+            } catch(e) { return; }
+            a.className = 'file-done-chip';
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.download = fname;
+            a.textContent = '⬇ ' + fname;
+            status.appendChild(a);
+          });
         }
       });
       document.getElementById('draftLinkInput').value = window.location.href.split('?')[0] + '?draft=' + key;
