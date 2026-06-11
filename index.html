@@ -603,19 +603,9 @@ textarea{resize:vertical;min-height:72px}
 
 <div class="submit-card">
   <button type="submit" class="submit-btn" id="submitBtn">Submit — Start my onboarding →</button>
-  <div style="margin-top:12px;text-align:center">
-    <button type="button" id="shareableDraftBtn" onclick="saveDraft()" style="background:none;border:1.5px solid #503390;color:#503390;padding:9px 20px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
-      💾 Save progress & get shareable link
-    </button>
-  </div>
-  <div id="draftLinkBox" style="display:none;margin-top:12px;background:#f0ebfb;border:1.5px solid #c8bee8;border-radius:8px;padding:12px 16px">
-    <div style="font-size:11px;color:#503390;font-weight:700;margin-bottom:6px">🔗 Shareable link — send this to your colleague:</div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <input id="draftLinkInput" type="text" readonly style="flex:1;font-size:11px;padding:6px 10px;border:1px solid #c8bee8;border-radius:5px;background:#fff;color:#333"/>
-      <button type="button" onclick="copyDraftLink()" style="background:#503390;color:#fff;border:none;padding:6px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer">Copy</button>
-    </div>
-    <div style="font-size:10px;color:#888;margin-top:6px">Anyone with this link can continue filling the form. Valid for 30 days.</div>
-  </div>
+  <!-- shareable draft link — hidden until approved for production -->
+  <div id="shareableDraftBtn" style="display:none"></div>
+  <div id="draftLinkBox" style="display:none"></div>
   <div class="submit-secure" style="margin-top:8px;font-size:9.5px;color:#aaa">🔒 Your data is submitted securely and saved directly to your CSM's system.</div>
 </div>
 
