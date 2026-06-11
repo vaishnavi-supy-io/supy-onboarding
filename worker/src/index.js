@@ -85,6 +85,78 @@ export default {
       return handleLogs(env);
     }
 
+
+
+
+
+    if (url.pathname === "/cloudinary-audit" && request.method === "GET") {
+      // List all resources grouped by type — helps find image-type files needing conversion
+      const prefix = url.searchParams.get("prefix") || "supy-onboarding";
+      const auth   = btoa(`${env.CLOUDINARY_API_KEY}:${env.CLOUDINARY_API_SECRET}`);
+      const results = { raw: [], image: [], private_raw: [], private_image: [] };
+      for (const rt of ["raw", "image"]) {
+        for (const tp of ["upload", "private"]) {
+          const r = await fetch(
+            `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/resources/${rt}?type=${tp}&prefix=${encodeURIComponent(prefix)}&max_results=100`,
+            { headers: { Authorization: `Basic ${auth}` } }
+          );
+          if (r.ok) {
+            const body = await r.json();
+            const key = `${tp === "private" ? "private_" : ""}${rt}`;
+            results[key] = (body.resources || []).map(x => ({ id: x.public_id, bytes: x.bytes, format: x.format }));
+          }
+        }
+      }
+      return json(results);
+    }
+
+    if (url.pathname === "/cloudinary-batch-fix" && request.method === "POST") {
+      try {
+      // Convert all image-type/upload resources to type=private so image/download API works.
+      // POST body: { prefix: "supy-onboarding" }  (optional, defaults to supy-onboarding)
+      const body    = await request.json().catch(() => ({}));
+      const prefix  = body.prefix || "supy-onboarding";
+      const auth    = btoa(`${env.CLOUDINARY_API_KEY}:${env.CLOUDINARY_API_SECRET}`);
+      const ts      = Math.floor(Date.now() / 1000).toString();
+
+      // Workers allow ~50 subrequests/invocation; we use 1 for list + up to 45 renames.
+      const next_cursor = body.next_cursor || null;
+      let listUrl = `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/resources/image?type=upload&prefix=${encodeURIComponent(prefix)}&max_results=45`;
+      if (next_cursor) listUrl += `&next_cursor=${encodeURIComponent(next_cursor)}`;
+
+      const listRes = await fetch(listUrl, { headers: { Authorization: `Basic ${auth}` } });
+      if (!listRes.ok) return json({ error: `List failed: ${listRes.status}` }, 500);
+      const listBody = await listRes.json();
+      const resources = listBody.resources || [];
+
+      async function convertOne(pid) {
+        const sigParts = [`from_public_id=${pid}`, `timestamp=${ts}`, `to_public_id=${pid}`, `to_type=private`, `type=upload`];
+        sigParts.sort();
+        const sigBuf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(sigParts.join("&") + env.CLOUDINARY_API_SECRET));
+        const signature = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+        const form = new URLSearchParams({ from_public_id: pid, to_public_id: pid, to_type: "private", type: "upload", timestamp: ts, api_key: env.CLOUDINARY_API_KEY, signature });
+        const r = await fetch(`https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/image/rename`,
+          { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form.toString() });
+        if (r.ok) return { ok: true, pid };
+        const err = await r.text().catch(() => String(r.status));
+        return { ok: false, pid, error: err };
+      }
+
+      const converted = [], failed = [];
+      const outcomes = await Promise.all(resources.map(res => convertOne(res.public_id)));
+      for (const o of outcomes) {
+        if (o.ok) converted.push(o.pid); else failed.push({ pid: o.pid, error: o.error });
+      }
+      return json({
+        converted: converted.length, failed: failed.length, failures: failed,
+        next_cursor: listBody.next_cursor || null,
+        done: !listBody.next_cursor,
+      });
+      } catch (err) {
+        return json({ error: err.message, stack: err.stack }, 500);
+      }
+    }
+
     if (url.pathname === "/debug" && request.method === "GET") {
       // Test Cloudinary connectivity
       let cloudinaryReachable = false;
@@ -117,6 +189,7 @@ export default {
         cloudinary_error:     cloudinaryError,
       });
     }
+
 
     if (url.pathname === "/") {
       return withCors(new Response("Supy Automation Server: Online", { status: 200 }));
@@ -259,9 +332,10 @@ async function handleUpload(request, env) {
   const slug      = company.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "unknown";
   const date      = new Date().toISOString().slice(0, 10);
   const uid       = crypto.randomUUID().slice(0, 8);
-  const safeName  = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
-  // Full path as public_id (no separate folder param — avoids double-nesting)
-  const publicId  = `supy-onboarding/${date}_${slug}/${uid}_${safeName}`;
+  const baseName  = file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 80);
+  // Strip extension from public_id — Cloudinary blocks zip/rar/tar CDN delivery by extension.
+  // The real filename is preserved in the download URL ?name= parameter.
+  const publicId  = `supy-onboarding/${date}_${slug}/${uid}_${baseName}`;
   const timestamp = Math.floor(Date.now() / 1000).toString();
 
   // Cloudinary signed upload: signature = SHA1(sorted_params + api_secret)
@@ -277,8 +351,10 @@ async function handleUpload(request, env) {
   clForm.append("signature", signature);
   clForm.append("public_id", publicId);
 
+  // Force raw resource_type so all files (PDFs, ZIPs, etc.) land in the raw bucket.
+  // auto/upload would reclassify PDFs as image type, breaking the raw/upload download path.
   const uploadRes  = await fetch(
-    `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/auto/upload`,
+    `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/raw/upload`,
     { method: "POST", body: clForm }
   );
   const uploadJson = await uploadRes.json();
@@ -793,35 +869,87 @@ async function handleDownload(request, env) {
   }
 
   // ── Cloudinary (legacy keys) ──────────────────────────────
-  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_KEY || !env.CLOUDINARY_API_SECRET) {
+  if (!env.CLOUDINARY_CLOUD_NAME || !env.CLOUDINARY_API_SECRET) {
     return json({ error: "Cloudinary not configured" }, 500);
   }
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const toSign    = `mode=download&public_ids=${key.replace(/&/g, "%26")}&timestamp=${timestamp}${env.CLOUDINARY_API_SECRET}`;
-  const sigBuf    = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(toSign));
-  const signature = Array.from(new Uint8Array(sigBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
 
-  const archiveUrl = `https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/raw/generate_archive`
-    + `?mode=download`
-    + `&public_ids%5B%5D=${encodeURIComponent(key)}`
-    + `&timestamp=${timestamp}`
-    + `&api_key=${env.CLOUDINARY_API_KEY}`
-    + `&signature=${signature}`;
+  // First: try a signed CDN delivery URL (works for xlsx, pdf, etc.).
+  // Signature = URL-safe base64(SHA-1(public_id + api_secret)), first 6 bytes → 8 chars.
+  const sigBuf = await crypto.subtle.digest(
+    "SHA-1",
+    new TextEncoder().encode(key + env.CLOUDINARY_API_SECRET)
+  );
+  const sigBytes = new Uint8Array(sigBuf).slice(0, 6);
+  const sig = btoa(String.fromCharCode(...sigBytes))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-  const upstream = await fetch(archiveUrl);
-  if (!upstream.ok) {
-    const err = await upstream.text();
-    return json({ error: `Download failed: ${upstream.status}` }, 502);
+  const cdnUrl  = `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/raw/upload/s--${sig}--/${key}`;
+  const cdnResp = await fetch(cdnUrl, { redirect: "manual" });
+
+  if (cdnResp.status === 301 || cdnResp.status === 302) {
+    return Response.redirect(cdnResp.headers.get("location"), 302);
   }
-  return new Response(upstream.body, {
-    status: 200,
-    headers: {
-      ...CORS_HEADERS,
-      "Content-Type":        upstream.headers.get("Content-Type") || "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control":       "no-store",
-    },
-  });
+  if (cdnResp.ok) {
+    return new Response(cdnResp.body, {
+      status: 200,
+      headers: {
+        ...CORS_HEADERS,
+        "Content-Type":        cdnResp.headers.get("Content-Type") || "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control":       "no-store",
+      },
+    });
+  }
+
+  // Fallback 1: might be stored as image type (e.g. PDF uploaded via auto/upload).
+  // For image resources, to_sign = public_id WITHOUT format extension (format is appended in URL only).
+  const ext = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
+  if (ext) {
+    const imgBuf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(key + env.CLOUDINARY_API_SECRET));
+    const imgBytes = new Uint8Array(imgBuf).slice(0, 6);
+    const imgSig = btoa(String.fromCharCode(...imgBytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const imgUrl = `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/s--${imgSig}--/${key}.${ext}`;
+    const imgResp = await fetch(imgUrl, { redirect: "manual" });
+    if (imgResp.status === 301 || imgResp.status === 302) {
+      return Response.redirect(imgResp.headers.get("location"), 302);
+    }
+    if (imgResp.ok) {
+      return new Response(imgResp.body, {
+        status: 200,
+        headers: {
+          ...CORS_HEADERS,
+          "Content-Type":        imgResp.headers.get("Content-Type") || "application/octet-stream",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control":       "no-store",
+        },
+      });
+    }
+  }
+
+  // Fallback 2: private file. Try raw/download then image/download (image-type PDFs need format param).
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const fileExt = filename.includes(".") ? filename.split(".").pop().toLowerCase() : "";
+  async function tryPrivateDownload(resourceType) {
+    const parts = [`attachment=${filename}`, `public_id=${key}`, `timestamp=${timestamp}`, `type=private`];
+    if (resourceType === "image" && fileExt) parts.push(`format=${fileExt}`);
+    parts.sort();
+    const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(parts.join("&") + env.CLOUDINARY_API_SECRET));
+    const signature = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+    const p = new URLSearchParams({ public_id: key, timestamp, api_key: env.CLOUDINARY_API_KEY, signature, attachment: filename, type: "private" });
+    if (resourceType === "image" && fileExt) p.set("format", fileExt);
+    return fetch(`https://api.cloudinary.com/v1_1/${env.CLOUDINARY_CLOUD_NAME}/${resourceType}/download?${p}`, { redirect: "manual" });
+  }
+  for (const rt of ["raw", "image"]) {
+    const dlResp = await tryPrivateDownload(rt);
+    if (dlResp.status === 302) return Response.redirect(dlResp.headers.get("location"), 302);
+    if (dlResp.ok) {
+      return new Response(dlResp.body, {
+        status: 200,
+        headers: { ...CORS_HEADERS, "Content-Type": dlResp.headers.get("Content-Type") || "application/octet-stream", "Content-Disposition": `attachment; filename="${filename}"` },
+      });
+    }
+  }
+  return json({ error: "File not found" }, 404);
 }
 
 // ── Draft save/load handlers ──────────────────────────────────
