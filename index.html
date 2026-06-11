@@ -137,7 +137,8 @@ textarea{resize:vertical;min-height:72px}
 .file-prog{height:3px;background:#ede9fb;border-radius:3px;overflow:hidden;margin-top:8px;display:none}
 .file-prog-fill{height:100%;background:linear-gradient(90deg,#503390,#40c798);border-radius:3px;transition:width .3s}
 .file-status{margin-top:7px;font-size:10.5px;min-height:18px}
-.file-done-chip{display:inline-flex;align-items:center;gap:5px;background:#E8FAF0;border:1px solid #40c798;border-radius:4px;padding:4px 10px;color:#1a6045;font-weight:600}
+.file-done-chip{display:inline-flex;align-items:center;gap:5px;background:#E8FAF0;border:1px solid #40c798;border-radius:4px;padding:4px 10px;color:#1a6045;font-weight:600;text-decoration:none;cursor:pointer}
+.file-done-chip:hover{background:#d4f5e6;border-color:#2da67a}
 .file-err-chip{display:inline-flex;align-items:center;gap:5px;background:#FEE2E2;border:1px solid #f87171;border-radius:4px;padding:4px 10px;color:#DC2626;font-weight:600}
 .file-loading-chip{display:inline-flex;align-items:center;gap:5px;color:#503390;font-weight:600}
 /* ── upload/link tab toggle ── */
@@ -1036,7 +1037,7 @@ function uploadFile(input, hiddenId, btnId, statusId, progId) {
           var prevChips = status.innerHTML.replace(/<span[^>]*>⏳[^<]*<\/span>/g, '');
           var newChips = files.map(function(f, i) {
             return urls[i]
-              ? '<span class="file-done-chip">✅ ' + f.name + '</span>'
+              ? '<a href="' + urls[i] + '" class="file-done-chip" target="_blank" download="' + f.name.replace(/"/g,'') + '">⬇ ' + f.name + '</a>'
               : '<span class="file-err-chip">❌ ' + f.name + ' (failed)</span>';
           }).join(' ');
           status.innerHTML = prevChips + ' ' + newChips;
@@ -1130,7 +1131,9 @@ var _draftKey = null;
           var urls = hidden.value.split(',').filter(Boolean);
           btn.innerHTML = '✅ Add more / done (' + urls.length + ' file' + (urls.length !== 1 ? 's' : '') + ')';
           status.innerHTML = urls.map(function(u) {
-            return '<span class="file-done-chip">✅ ' + u.split('/').pop().split('?')[0] + '</span>';
+            var fname = u;
+            try { fname = new URL(u).searchParams.get('name') || u.split('/').pop().split('?')[0]; } catch(e) {}
+            return '<a href="' + u + '" class="file-done-chip" target="_blank" download="' + fname.replace(/"/g,'') + '">⬇ ' + fname + '</a>';
           }).join(' ');
         }
       });

@@ -90,7 +90,9 @@ export default {
 
 
     if (url.pathname === "/cloudinary-audit" && request.method === "GET") {
-      // List all resources grouped by type — helps find image-type files needing conversion
+      if (!env.ADMIN_TOKEN || request.headers.get("x-admin-token") !== env.ADMIN_TOKEN) {
+        return json({ error: "Unauthorized" }, 401);
+      }
       const prefix = url.searchParams.get("prefix") || "supy-onboarding";
       const auth   = btoa(`${env.CLOUDINARY_API_KEY}:${env.CLOUDINARY_API_SECRET}`);
       const results = { raw: [], image: [], private_raw: [], private_image: [] };
@@ -111,6 +113,9 @@ export default {
     }
 
     if (url.pathname === "/cloudinary-batch-fix" && request.method === "POST") {
+      if (!env.ADMIN_TOKEN || request.headers.get("x-admin-token") !== env.ADMIN_TOKEN) {
+        return json({ error: "Unauthorized" }, 401);
+      }
       try {
       // Convert all image-type/upload resources to type=private so image/download API works.
       // POST body: { prefix: "supy-onboarding" }  (optional, defaults to supy-onboarding)
@@ -153,7 +158,8 @@ export default {
         done: !listBody.next_cursor,
       });
       } catch (err) {
-        return json({ error: err.message, stack: err.stack }, 500);
+        console.error("cloudinary-batch-fix error", err);
+        return json({ error: "Internal error" }, 500);
       }
     }
 
@@ -840,10 +846,15 @@ async function logToSheets(env, d, branches, submittedAt) {
 // New uploads always go through this same endpoint, so swapping
 // the backend in the future only requires updating this function.
 // ─────────────────────────────────────────────────────────────
+function sanitizeFilename(name) {
+  // Strip control chars, quotes, backslashes, CR/LF; cap at 200 chars
+  return (name || "download").replace(/[\x00-\x1f\x7f"\\]/g, "").replace(/\r|\n/g, "").slice(0, 200) || "download";
+}
+
 async function handleDownload(request, env) {
   const params   = new URL(request.url).searchParams;
   const key      = params.get("key");
-  const filename = params.get("name") || key?.split("/").pop() || "download";
+  const filename = sanitizeFilename(params.get("name") || key?.split("/").pop() || "download");
 
   if (!key) return json({ error: "Missing ?key= parameter" }, 400);
 
