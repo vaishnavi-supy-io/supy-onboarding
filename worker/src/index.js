@@ -556,11 +556,12 @@ function buildNote(d, branches, submittedAt) {
   let branchRows = "";
   for (let i = 0; i < branches.length; i++) {
     const b     = branches[i];
-    const hours = `${b.open || ""} – ${b.close || ""}`.replace(/^\s*–\s*$/, "");
-    branchRows += `<tr><td style='padding:5px 8px;border-bottom:1px solid #eee'>${i + 1}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'><b>${b.name || ""}</b></td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${b.address || ""}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${b.cost_center || ""}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${hours}</td></tr>`;
+    const hours  = `${b.open || ""} – ${b.close || ""}`.replace(/^\s*–\s*$/, "");
+    const cutoff = b.pos_cutoff || "—";
+    branchRows += `<tr><td style='padding:5px 8px;border-bottom:1px solid #eee'>${i + 1}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'><b>${b.name || ""}</b></td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${b.address || ""}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${b.cost_center || ""}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${hours}</td><td style='padding:5px 8px;border-bottom:1px solid #eee'>${cutoff}</td></tr>`;
   }
   const branchSection = branchRows
-    ? `<table style='border-collapse:collapse;width:100%;font-size:12px'><tr style='background:#321e57;color:#fff'><th style='padding:6px 8px'>#</th><th style='padding:6px 8px'>Branch Name</th><th style='padding:6px 8px'>Address</th><th style='padding:6px 8px'>Cost Center</th><th style='padding:6px 8px'>Hours</th></tr>${branchRows}</table>`
+    ? `<table style='border-collapse:collapse;width:100%;font-size:12px'><tr style='background:#321e57;color:#fff'><th style='padding:6px 8px'>#</th><th style='padding:6px 8px'>Branch Name</th><th style='padding:6px 8px'>Address</th><th style='padding:6px 8px'>Cost Center</th><th style='padding:6px 8px'>Hours</th><th style='padding:6px 8px'>POS Cutoff</th></tr>${branchRows}</table>`
     : "<i>No branch data provided.</i>";
 
   const linkCells = (label, raw) => {

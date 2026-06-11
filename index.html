@@ -73,8 +73,8 @@ textarea{resize:vertical;min-height:72px}
 .sheet-preview .sample-row td { background: #fff8f8; color: #d93025; border-bottom-color: #fce8e8; border-right-color: #fce8e8; }
 
 /* branch table */
-.branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow:hidden;margin-bottom:12px;width:100%}
-.branch-header,.branch-row{display:grid;grid-template-columns:2.2fr 1.8fr 1.3fr 3fr 1.1fr 36px;gap:0;width:100%;box-sizing:border-box}
+.branch-table-wrap{border:1.5px solid #e0d8f0;border-radius:8px;overflow-x:auto;margin-bottom:12px;width:100%}
+.branch-header,.branch-row{display:grid;grid-template-columns:2fr 1.8fr 1.3fr 2.6fr 1.5fr 1fr 36px;gap:0;width:100%;box-sizing:border-box;min-width:860px}
 .branch-header{background:#321e57}
 .bh-cell{display:flex;align-items:center;padding:10px;font-size:8px;font-weight:700;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.8px;border-right:1px solid rgba(255,255,255,.12)}
 .bh-cell:last-child{border-right:none}
@@ -191,7 +191,7 @@ textarea{resize:vertical;min-height:72px}
     <div class="sub-head">Internal Champion — owns Supy day-to-day, attends all 4 sessions</div>
     <div class="contact-card cc-navy">
       <div class="cc-hint cc-hint-navy">⭐ Your CSM's main contact throughout onboarding. Attends every training session and drives Supy adoption.</div>
-      <div class="row r3">
+      <div class="row r2">
         <div class="f"><label>First Name <span class="r">*</span></label><input type="text" name="champion_first_name" placeholder="First name" required/></div>
         <div class="f"><label>Last Name <span class="r">*</span></label><input type="text" name="champion_last_name" placeholder="Last name" required/></div>
       </div>
@@ -279,6 +279,7 @@ textarea{resize:vertical;min-height:72px}
         <div class="bh-cell">Address <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
         <div class="bh-cell">Cost Center <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
         <div class="bh-cell">Operating Hours <span class="r" style="color:#f87171;margin-left:3px">*</span></div>
+        <div class="bh-cell">POS Cutoff Time <span style="color:rgba(255,255,255,.4);font-size:9px;font-weight:400;margin-left:3px">(opt)</span></div>
         <div class="bh-cell">Details <span style="color:rgba(255,255,255,.4);font-size:9px;font-weight:400;margin-left:3px">(opt)</span></div>
         <div class="bh-cell"></div>
       </div>
@@ -288,6 +289,7 @@ textarea{resize:vertical;min-height:72px}
           <div class="bc"><input type="text" placeholder="e.g. Marina Walk, Dubai" required class="branch-req"/></div>
           <div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar" required class="branch-req"/></div>
           <div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>
+          <div class="bc bc-hours"><div class="hours-wrap"><input type="text" class="time-text cutoff-time" placeholder="2:00" title="POS cutoff time"/><select class="ampm-sel cutoff-ampm"><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>
           <div class="bc"><input type="text" placeholder="e.g. Ground floor"/></div>
           <div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>
         </div>
@@ -296,6 +298,7 @@ textarea{resize:vertical;min-height:72px}
           <div class="bc"><input type="text" placeholder="e.g. Gate Village, DIFC" required class="branch-req"/></div>
           <div class="bc"><input type="text" placeholder="e.g. Kitchen, Lounge" required class="branch-req"/></div>
           <div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>
+          <div class="bc bc-hours"><div class="hours-wrap"><input type="text" class="time-text cutoff-time" placeholder="2:00" title="POS cutoff time"/><select class="ampm-sel cutoff-ampm"><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>
           <div class="bc"><input type="text" placeholder="e.g. Level 2"/></div>
           <div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>
         </div>
@@ -652,6 +655,7 @@ function addBranchRow() {
     +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
     +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
     +'<div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
+    +'<div class="bc bc-hours"><div class="hours-wrap"><input type="text" class="time-text cutoff-time" placeholder="2:00" title="POS cutoff time"/><select class="ampm-sel cutoff-ampm"><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
     +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
     +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
   c.appendChild(row);
@@ -673,14 +677,18 @@ function deleteBranchRow(btn) {
 function collectBranches() {
   var branches = [];
   document.querySelectorAll('#branchRows .branch-row').forEach(function(row) {
-    var texts = row.querySelectorAll('input[type=text]');
-    var ampm  = row.querySelectorAll('select.ampm-sel');
+    var texts   = row.querySelectorAll('input[type=text]');
+    var ampm    = row.querySelectorAll('select.ampm-sel');
+    var cutoffT = row.querySelector('.cutoff-time');
+    var cutoffM = row.querySelector('.cutoff-ampm');
+    var cutoff  = cutoffT && cutoffT.value.trim() ? cutoffT.value.trim() + ' ' + (cutoffM ? cutoffM.value : 'PM') : '';
     var b = {
       name:        texts[0] ? texts[0].value.trim() : '',
       address:     texts[1] ? texts[1].value.trim() : '',
       cost_center: texts[2] ? texts[2].value.trim() : '',
       open:        (texts[3] ? texts[3].value.trim() : '') + ' ' + (ampm[0] ? ampm[0].value : ''),
       close:       (texts[4] ? texts[4].value.trim() : '') + ' ' + (ampm[1] ? ampm[1].value : ''),
+      pos_cutoff:  cutoff,
       details:     texts[5] ? texts[5].value.trim() : ''
     };
     if (b.name) branches.push(b);
@@ -1118,12 +1126,13 @@ var _draftKey = null;
             +'<div class="bc"><input type="text" placeholder="e.g. Street, City, Country" required class="branch-req"/></div>'
             +'<div class="bc"><input type="text" placeholder="e.g. Kitchen, Bar, Rooftop" required class="branch-req"/></div>'
             +'<div class="bc bc-hours"><div class="hours-wrap"><input type="text" required class="branch-req time-text" placeholder="9:00" title="Open time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM">PM</option></select><span class="hours-sep">–</span><input type="text" required class="branch-req time-text" placeholder="5:00" title="Close time"/><select class="ampm-sel branch-req" required><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
+            +'<div class="bc bc-hours"><div class="hours-wrap"><input type="text" class="time-text cutoff-time" placeholder="2:00" title="POS cutoff time"/><select class="ampm-sel cutoff-ampm"><option value="AM">AM</option><option value="PM" selected>PM</option></select></div></div>'
             +'<div class="bc"><input type="text" placeholder="e.g. Floor, unit, notes"/></div>'
             +'<div class="bc bh-del"><button type="button" class="del-row" onclick="deleteBranchRow(this)">&times;</button></div>';
           var texts = row.querySelectorAll('input[type=text]');
           var ampm  = row.querySelectorAll('select.ampm-sel');
           function splitTime(val) { var p = (val||'').trim().split(' '); return {t: p[0]||'', m: p[1]||'PM'}; }
-          var op = splitTime(b.open), cl = splitTime(b.close);
+          var op = splitTime(b.open), cl = splitTime(b.close), ct = splitTime(b.pos_cutoff || '');
           if (texts[0]) texts[0].value = b.name || '';
           if (texts[1]) texts[1].value = b.address || '';
           if (texts[2]) texts[2].value = b.cost_center || '';
@@ -1131,6 +1140,10 @@ var _draftKey = null;
           if (ampm[0])  ampm[0].value  = op.m;
           if (texts[4]) texts[4].value = cl.t;
           if (ampm[1])  ampm[1].value  = cl.m;
+          var cutoffInput = row.querySelector('.cutoff-time');
+          var cutoffSel   = row.querySelector('.cutoff-ampm');
+          if (cutoffInput) cutoffInput.value = ct.t;
+          if (cutoffSel)   cutoffSel.value   = ct.m || 'PM';
           if (texts[5]) texts[5].value = b.details || '';
           container.appendChild(row);
         });
