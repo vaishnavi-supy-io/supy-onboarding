@@ -237,6 +237,9 @@ async function handleWebhook(request, env) {
   const results = [];
 
   // 1. HubSpot
+  // Every step that fails is collected in `hsProblems` and posted to Slack below, so a
+  // submission that only partly reached HubSpot is never silent.
+  const hsProblems = [];
   const token = await getHubspotToken(env);
   let cid = null;
   if (token) {
@@ -251,18 +254,27 @@ async function handleWebhook(request, env) {
       });
       if (noteRes.status === 201) {
         const noteJson = await noteRes.json();
-        await linkEverything(token, noteJson.id, cid, company);
-        results.push(`hubspot:${action}:note-ok`);
+        const linkProblems = await linkEverything(token, noteJson.id, cid, company, d.champion_email);
+        hsProblems.push(...linkProblems);
+        results.push(linkProblems.length ? `hubspot:${action}:link-fail` : `hubspot:${action}:note-ok`);
       } else {
         const noteErr = await noteRes.text();
         console.error("HubSpot note create failed", noteRes.status, noteErr);
+        hsProblems.push(`Note not created (HTTP ${noteRes.status}): ${noteErr.slice(0, 200)}`);
         results.push(`hubspot:${action}:note-fail`);
       }
     } else {
+      hsProblems.push("Contact not created or found (see Worker logs)");
       results.push("hubspot:contact-fail");
     }
   } else {
+    hsProblems.push("Could not get a HubSpot access token");
     results.push("hubspot:auth-fail");
+  }
+  if (hsProblems.length) {
+    console.error("HubSpot sync incomplete", company, email, JSON.stringify(hsProblems));
+    const alertOk = await sendHubspotAlert(env, d, cid, hsProblems);
+    results.push(alertOk ? "hs-alert:ok" : "hs-alert:fail");
   }
 
   // 2. Slack (main channel)
@@ -473,78 +485,110 @@ async function upsertContact(token, d) {
   return { id: null, action: "failed" };
 }
 
-async function linkEverything(token, noteId, contactId, companyName) {
+// Email domains that say nothing about the company, so never used to find it.
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+  "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "msn.com",
+]);
+
+// Links the onboarding note and contact to the client's company and deals. Returns the steps
+// that failed (empty when everything linked), so the caller can alert instead of the
+// submission silently missing from the company and deal records.
+async function linkEverything(token, noteId, contactId, companyName, championEmail) {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const problems = [];
+  const fail = async (what, res) => {
+    const body = res ? await res.text().catch(() => "") : "";
+    problems.push(`${what}${res ? ` (HTTP ${res.status})` : ""}${body ? `: ${body.slice(0, 200)}` : ""}`);
+  };
 
-  const assoc = (from, fromId, to, toId, type) =>
-    fetch(`https://api.hubapi.com/crm/v3/associations/${from}/${to}/batch/create`, {
+  const assoc = async (from, fromId, to, toId, type) => {
+    try {
+      const r = await fetch(`https://api.hubapi.com/crm/v3/associations/${from}/${to}/batch/create`, {
+        method: "POST", headers,
+        body: JSON.stringify({ inputs: [{ from: { id: fromId }, to: { id: toId }, type }] }),
+      });
+      if (!r.ok) await fail(`Link ${from} → ${to} ${toId}`, r);
+    } catch (e) { problems.push(`Link ${from} → ${to} ${toId}: ${e.message}`); }
+  };
+  const searchCompanies = async (filter) => {
+    const r = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
       method: "POST", headers,
-      body: JSON.stringify({ inputs: [{ from: { id: fromId }, to: { id: toId }, type }] }),
+      body: JSON.stringify({ filterGroups: [{ filters: [filter] }], properties: ["name", "domain"], limit: 10 }),
     });
-
-  // Note → Contact
-  await assoc("Notes", noteId, "Contacts", contactId, "note_to_contact");
-
-  // Note → any Deals already on the Contact
-  try {
-    const r = await fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/deals`, { headers });
-    if (r.status === 200) {
-      for (const deal of (await r.json()).results || []) {
-        await assoc("Notes", noteId, "Deals", deal.id, "note_to_deal");
-      }
-    }
-  } catch {}
-
-  if (!companyName || companyName.toLowerCase() === "unknown") return;
-
-  // Deals by name
-  try {
-    const deals = await fetch("https://api.hubapi.com/crm/v3/objects/deals/search", {
-      method: "POST", headers,
-      body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "dealname", operator: "CONTAINS_TOKEN", value: companyName }] }] }),
-    });
-    for (const deal of (await deals.json()).results || []) {
-      await assoc("Notes",    noteId,    "Deals", deal.id, "note_to_deal");
+    if (!r.ok) { await fail(`Company search on ${filter.propertyName}`, r); return []; }
+    return (await r.json()).results || [];
+  };
+  const linkDealsOf = async (objectType, id) => {
+    const r = await fetch(`https://api.hubapi.com/crm/v3/objects/${objectType}/${id}/associations/deals`, { headers });
+    if (!r.ok) { await fail(`Read deals of ${objectType} ${id}`, r); return; }
+    for (const deal of (await r.json()).results || []) {
+      await assoc("Notes", noteId, "Deals", deal.id, "note_to_deal");
       await assoc("Contacts", contactId, "Deals", deal.id, "contact_to_deal");
     }
-  } catch {}
+  };
 
-  // Company — search first, create if missing, then link contact + note
+  // Note → Contact, and → any Deals already on the Contact
+  await assoc("Notes", noteId, "Contacts", contactId, "note_to_contact");
+  try { await linkDealsOf("contacts", contactId); } catch (e) { problems.push(`Deals of contact: ${e.message}`); }
+
+  if (!companyName || companyName.toLowerCase() === "unknown") return problems;
+
+  // Company: the one on the champion's email domain, else one with exactly this name, else a new
+  // one. Never "the first that contains a word of the name" — that picked unrelated companies.
   try {
-    const comps = await fetch("https://api.hubapi.com/crm/v3/objects/companies/search", {
-      method: "POST", headers,
-      body: JSON.stringify({ filterGroups: [{ filters: [{ propertyName: "name", operator: "CONTAINS_TOKEN", value: companyName }] }] }),
-    });
-    const compResults = (await comps.json()).results || [];
-
-    let compId;
-    if (compResults.length > 0) {
-      compId = compResults[0].id;
-    } else {
-      // No company found — create one
-      const createComp = await fetch("https://api.hubapi.com/crm/v3/objects/companies", {
-        method: "POST", headers,
-        body: JSON.stringify({ properties: { name: companyName } }),
-      });
-      if (createComp.status === 201) {
-        const created = await createComp.json();
-        compId = created.id;
-      } else {
-        console.error("HubSpot company create failed", createComp.status, await createComp.text());
-      }
+    const domain = String(championEmail || "").split("@")[1]?.trim().toLowerCase() || "";
+    let company = null;
+    if (domain && !FREE_EMAIL_DOMAINS.has(domain)) {
+      company = (await searchCompanies({ propertyName: "domain", operator: "EQ", value: domain }))[0] || null;
     }
-
+    if (!company) {
+      const named = await searchCompanies({ propertyName: "name", operator: "EQ", value: companyName });
+      company = named.find((c) => String(c.properties?.name || "").trim().toLowerCase() === companyName.toLowerCase()) || null;
+    }
+    let compId = company?.id || null;
+    if (!compId) {
+      const props = { name: companyName };
+      if (domain && !FREE_EMAIL_DOMAINS.has(domain)) props.domain = domain;
+      const createComp = await fetch("https://api.hubapi.com/crm/v3/objects/companies", {
+        method: "POST", headers, body: JSON.stringify({ properties: props }),
+      });
+      if (createComp.status === 201) compId = (await createComp.json()).id;
+      else await fail(`Create company "${companyName}"`, createComp);
+    }
     if (compId) {
       await assoc("Contacts", contactId, "Companies", compId, "contact_to_company");
-      await assoc("Notes",    noteId,    "Companies", compId, "note_to_company");
-      const compDeals = await fetch(`https://api.hubapi.com/crm/v3/objects/companies/${compId}/associations/deals`, { headers });
-      if (compDeals.status === 200) {
-        for (const deal of (await compDeals.json()).results || []) {
-          await assoc("Notes", noteId, "Deals", deal.id, "note_to_deal");
-        }
-      }
+      await assoc("Notes", noteId, "Companies", compId, "note_to_company");
+      await linkDealsOf("companies", compId);
+    } else {
+      problems.push(`No company linked for "${companyName}"`);
     }
-  } catch {}
+  } catch (e) {
+    problems.push(`Company linking: ${e.message}`);
+  }
+  return problems;
+}
+
+// Slack alert when a submission didn't fully reach HubSpot: what failed and where to look.
+async function sendHubspotAlert(env, d, cid, problems) {
+  if (!env.SLACK_WEBHOOK_URL) return false;
+  const contactLink = cid ? `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-1/${cid}` : null;
+  // Form text is public input: escaped so it can't become a Slack mention like <!channel>.
+  const esc = (v) => String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const text = [
+    `⚠️ Onboarding form for *${esc(d.company_name || "Unknown")}* (${esc(d.champion_email || "no email")}) didn't fully reach HubSpot.`,
+    contactLink
+      ? `The note is on this contact; link it to the company and deal by hand: ${contactLink}`
+      : "Nothing was saved in HubSpot. The answers are in the notification email and the Sheet.",
+    "What failed:",
+    ...problems.slice(0, 8).map((p) => `• ${esc(p)}`),
+  ].join("\n");
+  try {
+    const r = await fetch(env.SLACK_WEBHOOK_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }),
+    });
+    return r.status === 200;
+  } catch { return false; }
 }
 
 function buildNote(d, branches, submittedAt) {
